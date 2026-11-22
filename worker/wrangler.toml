@@ -1,0 +1,9 @@
+name = "ingles-sync"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ingles-sync"
+# Depois de "npx wrangler d1 create ingles-sync", cole aqui o database_id que aparecer:
+database_id = "COLE_AQUI_O_DATABASE_ID"

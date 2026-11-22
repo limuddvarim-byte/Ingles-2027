@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Inglês",
+  "short_name": "Inglês",
+  "version": "0.0.0",
+  "description": "Inglês — frases, cronômetro de streaming e estatísticas sincronizadas com o software e o app.",
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
+  "action": {
+    "default_title": "Inglês",
+    "default_popup": "app.html?popup=1",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png" }
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["storage", "alarms", "tabs", "contextMenus", "clipboardWrite", "clipboardRead"],
+  "host_permissions": [
+    "https://api.elevenlabs.io/*",
+    "http://127.0.0.1:8765/*",
+    "http://localhost:8765/*",
+    "https://*.workers.dev/*",
+    "https://api.github.com/*"
+  ],
+  "optional_host_permissions": ["https://*/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.hbomax.com/*",
+        "*://*.max.com/*",
+        "*://*.disneyplus.com/*",
+        "*://*.crunchyroll.com/*",
+        "*://*.primevideo.com/*",
+        "*://*.amazon.com/*",
+        "*://tv.apple.com/*",
+        "*://*.youtube.com/*",
+        "*://*.instagram.com/*"
+      ],
+      "js": ["stream.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": ["https://gemini.google.com/*", "https://chatgpt.com/*", "https://claude.ai/*"],
+      "js": ["ai.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "capture-subtitle": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Adicionar a legenda da tela às Frases"
+    }
+  }
+}

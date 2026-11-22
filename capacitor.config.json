@@ -1,0 +1,13 @@
+{
+  "appId": "com.ingles.triade",
+  "appName": "Inglês",
+  "webDir": "dist-android",
+  "android": {
+    "backgroundColor": "#000000",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": false },
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#000000", "showSpinner": false }
+  }
+}

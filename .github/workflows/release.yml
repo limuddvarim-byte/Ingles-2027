@@ -1,0 +1,150 @@
+# Gera a tríade (instalador Windows, APK Android e extensão) e publica nas Releases a cada push.
+name: Release da tríade
+
+on:
+  push:
+    branches: [main, master, 'claude/**']
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Versão sempre crescente: 1.0.<número da execução>. O APK novo instala por cima do antigo.
+  APP_VERSION: 1.0.${{ github.run_number }}
+  # Embutidos no build (opcional) — veja docs/TUTORIAL-CLOUDFLARE.md
+  SYNC_URL: ${{ vars.SYNC_URL }}
+  SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+  UPDATE_URL: ${{ vars.UPDATE_URL }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm version ${{ env.APP_VERSION }} --no-git-tag-version --allow-same-version
+      - run: npm run build:desktop-ui
+      - run: npm run build:extension
+      - run: npm run build:electron
+      - run: npx electron-builder --win nsis --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      signing: ${{ steps.ks.outputs.signing }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm version ${{ env.APP_VERSION }} --no-git-tag-version --allow-same-version
+      - run: npm run build:android-ui
+      - run: npx cap sync android
+      - name: Chave de assinatura fixa (GitHub Secrets)
+        id: ks
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "signing=fixa" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Secret ANDROID_KEYSTORE_BASE64 ausente — APK assinado com chave temporária (não atualiza por cima). Veja o README."
+            echo "signing=temporaria" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Compilar APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace -PversionCode=$((1000 + ${{ github.run_number }})) -PversionName=${{ env.APP_VERSION }}
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk ../out/Ingles-${{ env.APP_VERSION }}.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*.apk
+
+  extension:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm version ${{ env.APP_VERSION }} --no-git-tag-version --allow-same-version
+      - run: npm run build:extension
+      - run: |
+          mkdir -p out
+          cd extension-dist && zip -r ../out/Ingles-Extensao-${{ env.APP_VERSION }}.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          path: out/*.zip
+
+  release:
+    needs: [windows, android, extension]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist }
+      - run: ls -R dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: Inglês v${{ env.APP_VERSION }}
+          target_commitish: ${{ github.sha }}
+          make_latest: 'true'
+          files: |
+            dist/windows/*
+            dist/android/*.apk
+            dist/extension/*.zip
+          body: |
+            ## Inglês v${{ env.APP_VERSION }}
+
+            | | Arquivo | Como instalar |
+            |---|---|---|
+            | 💻 **Software (Windows)** | `Ingles-Setup-${{ env.APP_VERSION }}.exe` | Execute o instalador. Ele abre sozinho com o Windows e se atualiza sozinho. |
+            | 📱 **App (Android)** | `Ingles-${{ env.APP_VERSION }}.apk` | Instale por cima da versão anterior (os dados são mantidos). O app também avisa e atualiza sozinho. |
+            | 🧩 **Extensão (Chrome)** | `Ingles-Extensao-${{ env.APP_VERSION }}.zip` | Se usa o software, ele já mantém a extensão atualizada (Ajustes → Instalar no Chrome Estudos). Senão: descompacte e “Carregar sem compactação” em chrome://extensions. |
+
+            ${{ needs.android.outputs.signing == 'temporaria' && '> ⚠️ **APK de teste**: assinado com chave temporária porque os secrets de assinatura ainda não foram cadastrados. Ele não atualiza por cima de outras versões.' || '' }}
+
+            Commit: ${{ github.sha }}

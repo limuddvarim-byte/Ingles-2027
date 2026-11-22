@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Inglês</string>
+    <string name="title_activity_main">Inglês</string>
+    <string name="package_name">com.ingles.triade</string>
+    <string name="custom_url_scheme">com.ingles.triade</string>
+    <string name="accessibility_label">Inglês — contagem de streaming</string>
+    <string name="accessibility_description">Detecta quando um app de streaming (Netflix, HBO Max, Disney+, Prime Video, Crunchyroll, Apple TV, YouTube) está aberto para somar o seu tempo diário de inglês. Nenhum conteúdo da tela é lido.</string>
+</resources>

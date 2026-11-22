@@ -1,0 +1,41 @@
+appId: com.ingles.triade
+productName: Inglês
+executableName: Ingles
+copyright: Inglês
+directories:
+  output: release
+  buildResources: build
+files:
+  - electron-dist/**
+  - dist-desktop/**
+  - package.json
+extraResources:
+  - from: extension-dist
+    to: extension
+  - from: build/icon.png
+    to: icon.png
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: Ingles-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Inglês
+  uninstallDisplayName: Inglês
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+publish:
+  - provider: github
+    owner: limuddvarim-byte
+    repo: Ingles-2027
+    releaseType: release
