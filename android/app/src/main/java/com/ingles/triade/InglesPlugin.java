@@ -62,7 +62,7 @@ public class InglesPlugin extends Plugin {
             JSArray tabs = call.getArray("tabs");
             Intent i = new Intent(getContext(), CloneActivity.class);
             i.putExtra(CloneActivity.EXTRA_TABS, tabs.toString());
-            i.putExtra(CloneActivity.EXTRA_START, call.getInt("start", 0));
+            i.putExtra(CloneActivity.EXTRA_START, call.getInt("start", 0).intValue());
             getActivity().startActivity(i);
             call.resolve();
         } catch (Exception e) {

@@ -2205,3 +2205,21 @@ body.popup .mini-stat .ms-ico {
 body.popup .hide-narrow {
   display: none;
 }
+@media (max-width: 900px) {
+  .phrase-meta {
+    flex-basis: 100%;
+    margin-bottom: 2px;
+  }
+  .phrase-meta:empty {
+    display: none;
+  }
+  .phrase-actions {
+    gap: 0;
+  }
+}
+body.popup .phrase-meta {
+  flex-basis: 100%;
+}
+body.popup .phrase-meta:empty {
+  display: none;
+}

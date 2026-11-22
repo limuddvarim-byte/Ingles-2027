@@ -123,6 +123,7 @@ export function SettingsPage() {
           <SyncSection />
           {platform.kind === 'android' && <AndroidTrackingSection />}
           {platform.kind === 'desktop' && <DesktopSection />}
+          {platform.features.launcher && <RealWorldSection />}
           <AnkiSection />
           <UpdateSection />
           <DataSection />
@@ -455,6 +456,25 @@ function DataSection() {
           <input type="file" accept="application/json" hidden onChange={(e) => importData(e.target.files?.[0])} />
         </label>
       </div>
+    </Section>
+  );
+}
+
+function RealWorldSection() {
+  const tips = [
+    'Crie uma conta nova só para o Real World — ela fica isolada da sua conta principal.',
+    'No Instagram: Configurações → Idioma → English (US).',
+    'Siga criadores dos EUA, Reino Unido, Canadá e Austrália e curta/salve só posts em inglês nos primeiros dias.',
+    'Use “Não tenho interesse” em posts em português — o algoritmo aprende rápido.',
+    'Pesquise e assista Reels de temas que você gosta em inglês (ex.: “standup comedy”, “street interviews”).',
+  ];
+  return (
+    <Section icon="globe" title="Real World (Instagram em inglês)" sub="O clone já abre isolado e pedindo conteúdo em inglês" gradient="var(--g-gold)">
+      <ol className="small" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6, color: 'var(--text-2)' }}>
+        {tips.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+      </ol>
     </Section>
   );
 }
