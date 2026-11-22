@@ -68,7 +68,7 @@ export function StatsPage() {
 
   return (
     <div className="page" style={{ '--accent': 'var(--g-stats)', '--accent-glow': 'rgba(34,197,94,.55)' } as CSSProperties}>
-      <PageHead eyebrow="Estatísticas" icon="chart" title={<span>Seu progresso <span className="grad-text">com frases</span></span>} sub="Frases apagadas como “aprendidas” contam aqui. As de digitação incorreta são descartadas." right={<MonthNav month={month} setMonth={setMonth} />} />
+      <PageHead eyebrow="Estatísticas" icon="chart" title={<span>Seu progresso <span className="grad-text">com frases</span></span>} sub="Frases apagadas como “aprendidas” contam aqui. As de digitação incorreta são descartadas e não contam em nada." right={<MonthNav month={month} setMonth={setMonth} />} />
 
       <div className="grid cols-4">
         <Kpi icon="plus" gradient="var(--g-phrases)" value={m.added} label="Adicionadas no mês" sub={`${m.avgAddedPerDay.toFixed(1).replace('.', ',')} por dia`} color={colors.added} />

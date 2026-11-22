@@ -42,12 +42,18 @@ describe('estatísticas de frases', () => {
     expect(t.learned).toBe(2);
     expect(t.rate.pct).toBe(100);
   });
-  it('removidas não contam como aprendidas; excluídas não contam', () => {
+  it('descartadas (digitação incorreta) e excluídas não contam em nada', () => {
     const m = monthPhraseStats(phrases, '2026-11', today);
-    expect(m.added).toBe(6); // a b c d e f (g excluída, h é de outubro)
+    expect(m.added).toBe(5); // a b c d e (f descartada, g excluída, h é de outubro)
     expect(m.learned).toBe(5); // b c d e h
     expect(m.days).toHaveLength(30);
     expect(m.bestDay?.day).toBe('2026-11-20');
+  });
+  it('descartar hoje tira a frase das adicionadas de hoje', () => {
+    const typo = ph('t', today, undefined, { removed: true, learnedAt: at(today, 13) });
+    const t = todayStats([...phrases, typo], today);
+    expect(t.added).toBe(2);
+    expect(t.learned).toBe(2);
   });
   it('pendentes', () => {
     expect(pendingPhrases(phrases).map((p) => p.id)).toEqual(['a']);

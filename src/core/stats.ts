@@ -28,7 +28,8 @@ export function learningRate(added: number, learned: number): RateInfo {
   return { pct, label, tone: 'low', color: '#F43F5E', description: 'Acumulando frases' };
 }
 
-const isCountable = (p: Phrase) => !p.deleted;
+/** Frases descartadas por digitação incorreta somem de TODAS as contagens (nem adicionadas, nem aprendidas). */
+const isCountable = (p: Phrase) => !p.deleted && !p.removed;
 
 export interface DayCount {
   day: string;
@@ -46,7 +47,7 @@ export function countsByDay(phrases: Phrase[]): Map<string, DayCount> {
   for (const p of phrases) {
     if (!isCountable(p)) continue;
     get(dayKey(p.createdAt)).added++;
-    if (p.learnedAt && !p.removed) get(dayKey(p.learnedAt)).learned++;
+    if (p.learnedAt) get(dayKey(p.learnedAt)).learned++;
   }
   return map;
 }
@@ -113,12 +114,8 @@ function endOfDay(day: string): number {
 export function backlogAt(phrases: Phrase[], ts: number): number {
   let n = 0;
   for (const p of phrases) {
-    if (p.deleted || p.createdAt > ts) continue;
-    const gone = p.learnedAt ?? null;
-    if (gone === null || gone > ts) {
-      if (p.removed && gone === null) continue;
-      n++;
-    }
+    if (!isCountable(p) || p.createdAt > ts) continue;
+    if (p.learnedAt === null || p.learnedAt > ts) n++;
   }
   return n;
 }
@@ -169,9 +166,9 @@ export function weekdayDistribution(phrases: Phrase[]): { added: number[]; learn
   const added = Array(7).fill(0);
   const learned = Array(7).fill(0);
   for (const p of phrases) {
-    if (p.deleted) continue;
+    if (!isCountable(p)) continue;
     added[new Date(p.createdAt).getDay()]++;
-    if (p.learnedAt && !p.removed) learned[new Date(p.learnedAt).getDay()]++;
+    if (p.learnedAt) learned[new Date(p.learnedAt).getDay()]++;
   }
   return { added, learned };
 }

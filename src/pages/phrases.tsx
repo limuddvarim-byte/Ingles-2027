@@ -248,7 +248,7 @@ export function PhraseCard({ phrase, index = 0 }: { phrase: Phrase; index?: numb
   const deleteItems: MenuItem[] = [
     { section: 'Apagar' },
     { label: 'Apagar frase (foi aprendida)', icon: 'graduation', onClick: () => leave(() => learnPhrase(phrase), 'Frase aprendida! 🎉 +1 nas estatísticas') },
-    { label: 'Apagar frase (Digitação incorreta)', icon: 'trash', danger: true, onClick: () => leave(() => discardPhrase(phrase), 'Frase descartada (não conta como aprendida)') },
+    { label: 'Apagar frase (Digitação incorreta)', icon: 'trash', danger: true, onClick: () => leave(() => discardPhrase(phrase), 'Frase descartada — saiu das adicionadas e não conta como aprendida') },
   ];
 
   const prompt = async (kind: PromptKind) => {
