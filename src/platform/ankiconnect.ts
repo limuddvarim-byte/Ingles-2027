@@ -18,7 +18,12 @@ type Http = (r: HttpRequest) => Promise<HttpResponse>;
 export function ankiConnect(http: Http, getUrl: () => Promise<string>): Platform['anki'] {
   async function invoke<T>(action: string, params: Record<string, unknown> = {}): Promise<T> {
     const url = await getUrl();
-    const res = await http({ url, method: 'POST', body: { action, version: 6, params }, responseType: 'json' });
+    let res: HttpResponse;
+    try {
+      res = await http({ url, method: 'POST', body: { action, version: 6, params }, responseType: 'json' });
+    } catch {
+      throw new Error('Anki fechado ou sem o AnkiConnect.');
+    }
     const data = res.data as { result: T; error: string | null };
     if (!res.ok || !data) throw new Error('Anki não respondeu. Abra o Anki com o AnkiConnect instalado.');
     if (data.error) throw new Error(`Anki: ${data.error}`);
