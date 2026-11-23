@@ -3,64 +3,60 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { put, putMany, remove, uid } from '../core/db';
 import { SERVICES } from '../core/defaults';
 import { pendingPhrases, todayStats, watchTotals } from '../core/stats';
-import { dayKey, formatDuration } from '../core/time';
+import { dayKey, formatDuration, greeting } from '../core/time';
+import { UpdateBanner } from '../ui/UpdateBanner';
 import type { CloneKind, IconSpec, LauncherItem, StreamingService } from '../core/types';
 import { platform } from '../platform';
 import { useStore } from '../state/store';
 import { BRAND_IDS, TileIcon } from '../ui/BrandIcon';
 import { Icon, ICON_NAMES } from '../ui/Icon';
 import { Modal, Segmented, Switch } from '../ui/kit';
-import { PhrasesSection } from './phrases';
 
 export function HomePage() {
-  return (
-    <div className="page">
-      <KpiStrip />
-      {platform.features.launcher && <AppsStrip />}
-      <PhrasesSection hideStats />
-    </div>
-  );
-}
-
-/** Números do dia: adicionadas, aprendidas, média, tempo assistido e fila. */
-export function KpiStrip() {
   const phrases = useStore((s) => s.phrases);
   const watch = useStore((s) => s.watch);
   const goal = useStore((s) => s.shared.dailyGoalMinutes);
+  const go = useStore((s) => s.go);
   const today = dayKey();
   const t = useMemo(() => todayStats(phrases), [phrases]);
   const watched = useMemo(() => watchTotals(watch, (d) => d === today).total, [watch, today]);
   const pending = useMemo(() => pendingPhrases(phrases).length, [phrases]);
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const goalPct = goal ? Math.min(100, (watched / 60 / goal) * 100) : 0;
+  const date = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
   return (
-    <div className="kpis">
-      <div>
-        <span>Frases adicionadas (para aprender) hoje</span>
-        <b>{t.added ? `+${pad(t.added)}` : '00'}</b>
+    <div className="page">
+      <UpdateBanner />
+      <p className="hello-date">{date.charAt(0).toUpperCase() + date.slice(1)}</p>
+      <h1 className="hello">{greeting()} 👋</h1>
+      <div className="sum">
+        <button className="box" onClick={() => go('stats')}>
+          <div className="k">Inglês assistido hoje</div>
+          <div className="v">{formatDuration(watched)}</div>
+          <div className="s">{goal ? (goalPct >= 100 ? `meta de ${goal} min · batida` : `meta de ${goal} min · faltam ${formatDuration(Math.max(0, goal * 60 - watched))}`) : 'sem meta'}</div>
+          <div className="bar">
+            <i style={{ width: `${goalPct}%` }} />
+          </div>
+        </button>
+        <button className="box" onClick={() => go('phrases')}>
+          <div className="k">Frases de hoje</div>
+          <div className="v">
+            +{t.added} · {t.learned} {t.learned === 1 ? 'aprendida' : 'aprendidas'}
+          </div>
+          <div className="s">
+            {pending} na fila · média <b style={{ color: t.rate.tone === 'none' ? undefined : t.rate.color }}>{t.rate.label}</b>
+          </div>
+          <div className="bar">
+            <i style={{ width: `${t.rate.pct === null ? 0 : Math.min(100, t.rate.pct)}%` }} />
+          </div>
+        </button>
       </div>
-      <div>
-        <span>Frases aprendidas hoje</span>
-        <b>{pad(t.learned)}</b>
-      </div>
-      <div title={t.rate.description}>
-        <span>Média de aprendizado</span>
-        <b style={{ color: t.rate.tone === 'none' ? undefined : t.rate.color }}>{t.rate.label}</b>
-        <small>{t.rate.description.toLowerCase()}</small>
-      </div>
-      <div>
-        <span>Inglês assistido hoje</span>
-        <b>{formatDuration(watched).replace(' ', '')}</b>
-        <small>meta {goal} min · {goal ? Math.min(100, Math.round((watched / 60 / goal) * 100)) : 0}%</small>
-      </div>
-      <div>
-        <span>Na fila</span>
-        <b>{pad(pending)}</b>
-      </div>
+      <Apps />
     </div>
   );
 }
 
-function AppsStrip() {
+function Apps() {
   const items = useStore((s) => s.launcher);
   const toast = useStore((s) => s.toast);
   const [editing, setEditing] = useState(false);
@@ -90,12 +86,19 @@ function AppsStrip() {
 
   return (
     <>
-      <div className="apps">
-        <span className="lbl">apps</span>
+      <div className="sec-title">
+        Seus apps
+        <span className="sp" />
+        {platform.kind === 'desktop' && <span className="hide-narrow" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>abrem no Chrome Estudos</span>}
+        <button className="btn sm ghost" onClick={() => setEditing(!editing)}>
+          <Icon name={editing ? 'check' : 'pen'} size={14} /> {editing ? 'Pronto' : 'Editar'}
+        </button>
+      </div>
+      <div className="apps-grid">
         {visible.map((item) => (
           <button
             key={item.id}
-            className={`app ${editing ? 'editing' : ''} ${drag === item.id ? 'dragging' : ''} ${over === item.id ? 'drop-target' : ''}`}
+            className={`app-tile ${editing ? 'editing' : ''} ${drag === item.id ? 'dragging' : ''} ${over === item.id ? 'drop-target' : ''}`}
             onClick={() => open(item)}
             draggable={editing}
             onDragStart={() => setDrag(item.id)}
@@ -108,7 +111,7 @@ function AppsStrip() {
               setOver(item.id);
             }}
             onDrop={() => drag && reorder(drag, item.id)}
-            title={platform.kind === 'desktop' ? `${item.name} — abre no Chrome Estudos` : item.name}
+            title={item.urls.join('\n')}
           >
             {editing && (
               <span
@@ -119,29 +122,24 @@ function AppsStrip() {
                   toast(`“${item.name}” removido`, 'info');
                 }}
               >
-                <Icon name="x" size={11} stroke={3} />
+                <Icon name="x" size={12} stroke={3} />
               </span>
             )}
             <span className="ico">
-              <TileIcon icon={item.icon} colors={item.colors} size={50} />
+              <TileIcon icon={item.icon} colors={item.colors} size={72} />
             </span>
-            <span className="nm">{item.name.toLowerCase()}</span>
-            {item.urls.length > 1 && <span className="count">×{item.urls.length}</span>}
+            <span className="nm">{item.name}</span>
+            {item.urls.length > 1 && <span className="badge">{item.urls.length}</span>}
           </button>
         ))}
-        <button className="app add" onClick={() => setModal('new')} title="Adicionar atalho">
+        <button className="app-tile add" onClick={() => setModal('new')}>
           <span className="ico">
-            <Icon name="plus" size={18} />
+            <Icon name="plus" size={24} />
           </span>
-          <span className="nm">novo</span>
-        </button>
-        <button className={`app add ${editing ? 'editing' : ''}`} onClick={() => setEditing(!editing)} title="Editar, reordenar e remover atalhos">
-          <span className="ico">
-            <Icon name={editing ? 'check' : 'pen'} size={16} />
-          </span>
-          <span className="nm">{editing ? 'ok' : 'editar'}</span>
+          <span className="nm">Adicionar</span>
         </button>
       </div>
+      {editing && <p className="hint" style={{ marginTop: 12 }}>Toque num app para editar nome, ícone e páginas · arraste para reordenar · ✕ remove.</p>}
       {modal && <LauncherModal item={modal === 'new' ? null : modal} count={items.length} onClose={() => setModal(null)} />}
     </>
   );

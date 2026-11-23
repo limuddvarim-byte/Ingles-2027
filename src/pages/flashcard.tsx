@@ -125,7 +125,7 @@ export function FlashcardModal({ phrase, onClose }: { phrase: Phrase; onClose: (
 
   return (
     <Modal
-      wide
+      side
       title="Flashcard"
       icon="layers"
       accent="var(--g-settings)"
@@ -148,7 +148,7 @@ export function FlashcardModal({ phrase, onClose }: { phrase: Phrase; onClose: (
         </>
       }
     >
-      <div className="grid cols-2" style={{ alignItems: 'start' }}>
+      <div className="col" style={{ gap: 18 }}>
         <div className="col">
           <div className={`flip ${flipped ? 'flipped' : ''}`} onClick={() => setFlipped(!flipped)} style={{ cursor: 'pointer' }}>
             <div className="flip-inner">

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useStore } from '../state/store';
 import { Icon, type IconName } from './Icon';
 
-export function Modal({ title, icon, accent, onClose, children, footer, wide }: { title: ReactNode; icon?: IconName; accent?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+export function Modal({ title, icon, accent, onClose, children, footer, wide, side }: { title: ReactNode; icon?: IconName; accent?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean; side?: boolean }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     const back = (e: Event) => {
@@ -18,7 +18,7 @@ export function Modal({ title, icon, accent, onClose, children, footer, wide }: 
     };
   }, [onClose]);
   return createPortal(
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={`overlay ${side ? 'panel' : ''}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${wide ? 'wide' : ''}`} style={accent ? ({ '--accent': accent } as CSSProperties) : undefined} role="dialog">
         <div className="modal-head">
           {icon && (
@@ -183,14 +183,16 @@ export function Empty({ icon, title, text, action, accent }: { icon: IconName; t
   );
 }
 
-export function PageHead({ eyebrow, title, sub, right, icon }: { eyebrow: string; title: ReactNode; sub?: ReactNode; right?: ReactNode; icon?: IconName }) {
+export function PageHead({ eyebrow, title, sub, right, icon }: { eyebrow?: string; title: ReactNode; sub?: ReactNode; right?: ReactNode; icon?: IconName }) {
   return (
     <div className="page-head">
       <div>
-        <div className="eyebrow">
-          {icon && <Icon name={icon} size={14} style={{ color: 'var(--turquoise)' }} />}
-          {eyebrow}
-        </div>
+        {eyebrow && (
+          <div className="eyebrow">
+            {icon && <Icon name={icon} size={14} />}
+            {eyebrow}
+          </div>
+        )}
         <h1>{title}</h1>
         {sub && <p>{sub}</p>}
       </div>

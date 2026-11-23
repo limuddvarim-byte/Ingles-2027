@@ -6,7 +6,8 @@ import type { DraftDoc, LauncherItem, LocalSettings, Phrase, SharedSettings, Wat
 import { DEFAULT_LOCAL, DEFAULT_SHARED } from '../core/defaults';
 import { get as dbGet } from '../core/db';
 
-export type Page = 'home' | 'editor' | 'stats' | 'streaming' | 'settings';
+export type Page = 'home' | 'phrases' | 'draft' | 'stats' | 'settings';
+export const PAGES: Page[] = ['home', 'phrases', 'draft', 'stats', 'settings'];
 
 export interface Toast {
   id: number;
@@ -27,8 +28,6 @@ interface State {
   sync: SyncStatus;
   toasts: Toast[];
   editorSeed: { html: string; nonce: number } | null;
-  quickAdd: boolean;
-  setQuickAdd(v: boolean): void;
   go(page: Page): void;
   toast(text: string, tone?: Toast['tone'], action?: Toast['action']): void;
   dismissToast(id: number): void;
@@ -41,7 +40,7 @@ let toastId = 1;
 
 export const useStore = create<State>((set, get) => ({
   ready: false,
-  page: 'home',
+  page: (typeof __PLATFORM__ !== 'undefined' && __PLATFORM__ === 'extension' ? 'phrases' : 'home') as Page,
   phrases: [],
   launcher: [],
   watch: [],
@@ -51,10 +50,6 @@ export const useStore = create<State>((set, get) => ({
   sync: getSyncStatus(),
   toasts: [],
   editorSeed: null,
-  quickAdd: false,
-  setQuickAdd(v) {
-    set({ quickAdd: v });
-  },
   go(page) {
     set({ page });
     try {
@@ -80,7 +75,7 @@ export const useStore = create<State>((set, get) => ({
     await setLocalSettings(patch);
   },
   seedEditor(html) {
-    set({ editorSeed: { html, nonce: Date.now() }, page: 'editor' });
+    set({ editorSeed: { html, nonce: Date.now() }, page: 'phrases' });
   },
 }));
 
@@ -111,7 +106,7 @@ export async function loadAll() {
     draft: draft ?? null,
     shared,
     local,
-    ...(['home', 'editor', 'stats', 'streaming', 'settings'].includes(hash) ? { page: hash } : {}),
+    ...(PAGES.includes(hash) ? { page: hash } : {}),
   });
 
   onChange(async (e) => {
@@ -139,6 +134,6 @@ export async function loadAll() {
   onSyncStatus((s) => useStore.setState({ sync: s }));
   window.addEventListener('hashchange', () => {
     const h = location.hash.slice(1) as Page;
-    if (['home', 'editor', 'stats', 'streaming', 'settings'].includes(h) && h !== useStore.getState().page) useStore.setState({ page: h });
+    if (PAGES.includes(h) && h !== useStore.getState().page) useStore.setState({ page: h });
   });
 }

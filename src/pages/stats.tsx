@@ -5,7 +5,8 @@ import { addMonths, dayKey, dayLabel, lastNDays, monthKey, monthLabel, WEEKDAYS_
 import { useStore } from '../state/store';
 import { BarChart, Heatmap, Legend, LineChart } from '../ui/charts';
 import { Icon, type IconName } from '../ui/Icon';
-import { PageHead, Ring } from '../ui/kit';
+import { PageHead, Ring, Segmented } from '../ui/kit';
+import { StreamingPage } from './streaming';
 import { useChartColors } from '../ui/theme';
 
 export function Kpi({ icon, gradient, value, label, sub, color }: { icon: IconName; gradient: string; value: ReactNode; label: string; sub?: ReactNode; color?: string }) {
@@ -40,7 +41,7 @@ export function MonthNav({ month, setMonth }: { month: string; setMonth: (m: str
 
 const fmtDays = (d: number | null) => (d === null ? '—' : d < 1 ? `${Math.max(1, Math.round(d * 24))}h` : `${d.toFixed(d < 10 ? 1 : 0).replace('.', ',')} dias`);
 
-export function StatsPage() {
+function PhraseStats({ tabs }: { tabs: ReactNode }) {
   const phrases = useStore((s) => s.phrases);
   const colors = useChartColors();
   const [month, setMonth] = useState(monthKey());
@@ -67,14 +68,14 @@ export function StatsPage() {
   ];
 
   return (
-    <div className="page" style={{ '--accent': 'var(--g-stats)', '--accent-glow': 'rgba(34,197,94,.55)' } as CSSProperties}>
-      <PageHead eyebrow="Estatísticas" icon="chart" title={<span>Seu progresso <span className="grad-text">com frases</span></span>} sub="Frases apagadas como “aprendidas” contam aqui. As de digitação incorreta são descartadas e não contam em nada." right={<MonthNav month={month} setMonth={setMonth} />} />
+    <div className="page wide">
+      <PageHead eyebrow="Estatísticas" icon="chart" title="Estatísticas" sub="Frases apagadas como “aprendidas” contam aqui. As de digitação incorreta são descartadas e não contam em nada." right={<>{tabs}<MonthNav month={month} setMonth={setMonth} /></>} />
 
       <div className="grid cols-4">
         <Kpi icon="plus" gradient="var(--g-phrases)" value={m.added} label="Adicionadas no mês" sub={`${m.avgAddedPerDay.toFixed(1).replace('.', ',')} por dia`} color={colors.added} />
         <Kpi icon="graduation" gradient="var(--g-stats)" value={m.learned} label="Aprendidas no mês" sub={`${m.avgLearnedPerDay.toFixed(1).replace('.', ',')} por dia`} color={colors.learned} />
-        <Kpi icon="flame" gradient="var(--g-stream)" value={`${streak.current} ${streak.current === 1 ? 'dia' : 'dias'}`} label="Sequência aprendendo" sub={`Recorde: ${streak.best} dias`} color="#f97316" />
-        <Kpi icon="list" gradient="var(--g-settings)" value={backlogNow} label="Na fila agora" sub={`${withAudio} com áudio · ${withBack} com verso`} color="#a855f7" />
+        <Kpi icon="flame" gradient="var(--g-stream)" value={`${streak.current} ${streak.current === 1 ? 'dia' : 'dias'}`} label="Sequência aprendendo" sub={`Recorde: ${streak.best} dias`} />
+        <Kpi icon="list" gradient="var(--g-settings)" value={backlogNow} label="Na fila agora" sub={`${withAudio} com áudio · ${withBack} com verso`} />
       </div>
 
       <div className="grid cols-3 mt">
@@ -171,4 +172,19 @@ export function StatsPage() {
       </p>
     </div>
   );
+}
+
+export function StatsPage() {
+  const [tab, setTab] = useState<'frases' | 'streaming'>('frases');
+  const tabs = (
+    <Segmented
+      value={tab}
+      onChange={setTab}
+      options={[
+        { value: 'frases', label: 'Frases' },
+        { value: 'streaming', label: 'Streaming' },
+      ]}
+    />
+  );
+  return tab === 'frases' ? <PhraseStats tabs={tabs} /> : <StreamingPage tabs={tabs} />;
 }

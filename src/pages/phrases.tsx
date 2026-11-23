@@ -1,5 +1,5 @@
-// Aba "Frases": lista, estatísticas do dia, áudio, prompts e flashcards.
-import { useMemo, useRef, useState } from 'react';
+// Aba "Frases": só frases. Estatísticas do dia, editor recolhível e a lista.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildPrompt, type PromptKind } from '../core/prompts';
 import { pendingPhrases, todayStats } from '../core/stats';
 import type { Phrase } from '../core/types';
@@ -9,39 +9,132 @@ import { addPhrase, discardPhrase, highlightsOf, learnPhrase, restorePhrase, upd
 import { useStore } from '../state/store';
 import { FlashcardModal } from './flashcard';
 import { Icon } from '../ui/Icon';
-import { Empty, Modal, Spinner, useAsync, useMenu, type MenuItem } from '../ui/kit';
+import { Empty, Modal, PageHead, Spinner, useAsync, useMenu, type MenuItem } from '../ui/kit';
 import { RichEditor, type RichEditorHandle } from '../ui/RichEditor';
 import { RichPhrase } from '../ui/RichPhrase';
+import { UpdateBanner } from '../ui/UpdateBanner';
 
+/** As três estatísticas simples do dia. */
 export function TodayStrip() {
   const phrases = useStore((s) => s.phrases);
   const t = useMemo(() => todayStats(phrases), [phrases]);
   return (
-    <div className="kpis" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-      <div>
+    <div className="today">
+      <div className="t">
+        <b>{t.added ? `+${t.added}` : '0'}</b>
         <span>Frases adicionadas (para aprender) hoje</span>
-        <b>{String(t.added).padStart(2, '0')}</b>
       </div>
-      <div>
+      <div className="t">
+        <b>{t.learned}</b>
         <span>Frases aprendidas hoje</span>
-        <b>{String(t.learned).padStart(2, '0')}</b>
       </div>
-      <div title={t.rate.description}>
-        <span>Média de aprendizado</span>
+      <div className="t" title={t.rate.description}>
         <b style={{ color: t.rate.tone === 'none' ? undefined : t.rate.color }}>{t.rate.label}</b>
+        <span>Média de aprendizado</span>
       </div>
     </div>
   );
 }
 
-export function PhrasesSection({ compactHeader = false, hideStats = false, index = '02' }: { compactHeader?: boolean; hideStats?: boolean; index?: string }) {
+/** Editor de nova frase. No PC fica recolhido numa linha; no celular abre numa gaveta acima do teclado. */
+function ComposerBody({ onDone, autofocus }: { onDone?: () => void; autofocus?: boolean }) {
+  const ref = useRef<RichEditorHandle>(null);
+  const backRef = useRef<RichEditorHandle>(null);
+  const toast = useStore((s) => s.toast);
+  const seed = useStore((s) => s.editorSeed);
+  const [html, setHtml] = useState(seed?.html ?? '');
+  const [withBack, setWithBack] = useState(false);
+
+  useEffect(() => {
+    if (seed?.html) ref.current?.setHTML(seed.html);
+  }, [seed?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async () => {
+    const p = await addPhrase(ref.current?.getHTML() ?? '', withBack ? backRef.current?.getHTML() ?? '' : '');
+    if (!p) return toast('Escreva uma frase primeiro', 'error');
+    ref.current?.clear();
+    backRef.current?.clear();
+    setWithBack(false);
+    toast('Frase adicionada', 'success');
+    onDone?.();
+  };
+
+  return (
+    <>
+      <RichEditor ref={ref} value={html} onChange={setHtml} autofocus={autofocus} onSubmit={save} placeholder="Escreva ou cole uma frase em inglês…" />
+      {withBack && (
+        <div className="back-ed">
+          <RichEditor ref={backRef} variant="compact" placeholder="Verso (opcional): tradução ou definição" />
+        </div>
+      )}
+      <div className="foot">
+        <button className="btn sm ghost" onClick={() => setWithBack(!withBack)}>
+          <Icon name={withBack ? 'x' : 'plus'} size={14} /> Verso
+        </button>
+        <span className="hint hide-narrow">Selecione um trecho para destacar ou criar uma seta · Ctrl+Enter salva</span>
+        <span className="sp" />
+        {onDone && (
+          <button className="btn sm ghost" onClick={onDone}>
+            Cancelar
+          </button>
+        )}
+        <button className="btn sm primary" onClick={save} disabled={!html}>
+          Adicionar frase
+        </button>
+      </div>
+    </>
+  );
+}
+
+const isMobile = () => window.matchMedia('(max-width: 760px)').matches || document.body.classList.contains('popup');
+
+function InlineComposer() {
+  const [open, setOpen] = useState(false);
+  const seed = useStore((s) => s.editorSeed);
+  useEffect(() => {
+    if (seed?.html && !isMobile()) setOpen(true);
+  }, [seed?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey && !(t.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(t.tagName)) && !document.querySelector('.overlay')) {
+        e.preventDefault();
+        setOpen(true);
+      }
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  return (
+    <div className={`composer inline ${open ? 'open' : ''}`}>
+      {open ? (
+        <ComposerBody autofocus onDone={() => setOpen(false)} />
+      ) : (
+        <button className="closed" onClick={() => setOpen(true)}>
+          <span className="plus">
+            <Icon name="plus" size={16} stroke={2.4} />
+          </span>
+          Escreva uma nova frase…
+          <span className="kbd">N</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function PhrasesPage() {
   const phrases = useStore((s) => s.phrases);
   const shared = useStore((s) => s.shared);
   const toast = useStore((s) => s.toast);
+  const go = useStore((s) => s.go);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'noaudio' | 'noback'>('all');
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
-  const setQuick = useStore((s) => s.setQuickAdd);
+  const [sheet, setSheet] = useState(false);
+  const seed = useStore((s) => s.editorSeed);
+  useEffect(() => {
+    if (seed?.html && isMobile()) setSheet(true);
+  }, [seed?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const pending = useMemo(() => pendingPhrases(phrases), [phrases]);
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -53,122 +146,91 @@ export function PhrasesSection({ compactHeader = false, hideStats = false, index
     });
   }, [pending, q, filter, shared.elevenVoiceId]);
 
-  const missingAudio = pending.filter((p) => !audioIsFresh(p, shared.elevenVoiceId)).length;
-
   const runBatch = async () => {
     if (!shared.elevenApiKey || !shared.elevenVoiceId) {
-      toast('Configure a chave e a voz do ElevenLabs em Ajustes → Voz', 'error');
+      toast('Configure a chave e a voz do ElevenLabs em Ajustes', 'error');
       return;
     }
     const r = await generateAll(pending, (done, total) => setBatch({ done, total }));
     setBatch(null);
     if (r.errors.length) toast(r.errors[0], 'error');
-    else toast(r.total ? `Áudio gerado para ${r.total} frase${r.total > 1 ? 's' : ''} 🎧` : 'Todas as frases já têm áudio', 'success');
+    else toast(r.total ? `Áudio gerado para ${r.total} frase${r.total > 1 ? 's' : ''}` : 'Todas as frases já têm áudio', 'success');
   };
 
   return (
-    <section>
-      {!compactHeader && (
-        <div className="section-head">
-          <span>
-            frases · <b>{pending.length}</b> na fila
-          </span>
-          <span className="spacer" />
-          <span className="hide-narrow">toque na frase = copiar · pressione = apagar</span>
-        </div>
-      )}
-      {!hideStats && <TodayStrip />}
+    <div className="page">
+      <UpdateBanner />
+      <PageHead
+        eyebrow="Frases"
+        title="Frases"
+        sub={`${pending.length} para aprender · toque numa frase para copiar`}
+        right={
+          <button className="btn" onClick={() => go('draft')}>
+            <Icon name="pen" size={15} /> Rascunho{platform.features.ocr ? ' e OCR' : ''}
+          </button>
+        }
+      />
+      <TodayStrip />
+      <InlineComposer />
 
-      <div className="ptool">
+      <div className="listh">
+        <span className="lbl">Para aprender</span>
+        <span className="sp" />
         <div className="search">
           <Icon name="search" size={15} />
-          <input className="input" placeholder="buscar frase ou tradução…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input" placeholder="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <select className="select" style={{ width: 'auto' }} value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
-          <option value="all">todas</option>
-          <option value="noaudio">sem áudio</option>
-          <option value="noback">sem verso</option>
-        </select>
-        <button className="btn" onClick={runBatch} disabled={!!batch} title="Gerar áudio do ElevenLabs para todas as frases de uma vez">
-          {batch ? <Spinner size={14} /> : <Icon name="headphones" size={15} />}
-          {batch ? `${batch.done}/${batch.total}` : `áudio p/ todas${missingAudio ? ` (${missingAudio})` : ''}`}
+        <div className="segmented">
+          {(
+            [
+              ['all', 'Todas'],
+              ['noaudio', 'Sem áudio'],
+              ['noback', 'Sem verso'],
+            ] as const
+          ).map(([v, l]) => (
+            <button key={v} className={filter === v ? 'on' : ''} onClick={() => setFilter(v)}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <button className="btn sm" onClick={runBatch} disabled={!!batch} title="Gerar o áudio (ElevenLabs) de todas as frases de uma vez">
+          {batch ? <Spinner size={14} /> : <Icon name="volume" size={15} />}
+          {batch ? `${batch.done}/${batch.total}` : 'Áudio p/ todas'}
         </button>
-        <button className="btn primary" onClick={() => setQuick(true)}>
-          <Icon name="plus" size={15} stroke={2.6} /> nova frase
-        </button>
-        {batch && batch.total > 0 && (
-          <div className="progress" style={{ flexBasis: '100%', marginTop: 4 }}>
-            <i style={{ width: `${(batch.done / batch.total) * 100}%`, background: 'var(--a)' }} />
-          </div>
-        )}
       </div>
+      {batch && batch.total > 0 && (
+        <div className="progress" style={{ margin: '-2px 0 12px' }}>
+          <i style={{ width: `${(batch.done / batch.total) * 100}%`, background: 'var(--a)' }} />
+        </div>
+      )}
 
       {list.length === 0 ? (
-        <Empty
-          icon="quote"
-          title={pending.length ? 'nada encontrado' : 'nenhuma frase ainda'}
-          text={pending.length ? 'Tente outra busca ou filtro.' : 'Adicione frases de séries, vídeos e posts. Apagar como “aprendida” conta nas estatísticas.'}
-          action={
-            !pending.length && (
-              <button className="btn primary" onClick={() => setQuick(true)}>
-                <Icon name="plus" size={15} /> nova frase
-              </button>
-            )
-          }
-        />
+        <div className="plist">
+          <Empty
+            icon="book"
+            title={pending.length ? 'Nada encontrado' : 'Nenhuma frase ainda'}
+            text={pending.length ? 'Tente outra busca ou filtro.' : 'Escreva uma frase acima ou capture legendas com a extensão. Marque o círculo quando aprender.'}
+          />
+        </div>
       ) : (
-        <div className="ptable">
-          <div className="prow-head">
-            <span>id</span>
-            <span>quando</span>
-            <span>frase</span>
-            <span>status</span>
-            <span style={{ textAlign: 'right' }}>ações</span>
-          </div>
+        <div className="plist">
           {list.map((p) => (
-            <PhraseRow key={p.id} phrase={p} />
+            <PhraseItem key={p.id} phrase={p} />
           ))}
         </div>
       )}
-    </section>
-  );
-}
 
-export function QuickAdd({ onClose }: { onClose: () => void }) {
-  const ref = useRef<RichEditorHandle>(null);
-  const toast = useStore((s) => s.toast);
-  const [html, setHtml] = useState('');
-  const save = async (again: boolean) => {
-    const p = await addPhrase(ref.current?.getHTML() ?? '');
-    if (!p) return toast('Escreva uma frase primeiro', 'error');
-    toast('Frase adicionada', 'success');
-    if (again) {
-      ref.current?.clear();
-      ref.current?.focus();
-    } else onClose();
-  };
-  return (
-    <Modal
-      title="Nova frase"
-      icon="plus"
-      accent="var(--g-phrases)"
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn" onClick={() => save(true)} disabled={!html}>
-            Salvar e adicionar outra
-          </button>
-          <button className="btn primary" onClick={() => save(false)} disabled={!html}>
-            <Icon name="check" size={16} /> Adicionar
-          </button>
-        </>
-      }
-    >
-      <RichEditor ref={ref} value="" onChange={setHtml} autofocus onSubmit={() => save(false)} />
-      <p className="hint" style={{ marginTop: 10 }}>
-        Selecione um trecho para destacar (negrito, cor, sublinhado) ou criar uma <b>seta com explicação</b>. Os prompts das IAs dão ênfase ao trecho destacado. <span className="kbd">Ctrl</span>+<span className="kbd">Enter</span> salva.
-      </p>
-    </Modal>
+      <button className="fab" onClick={() => setSheet(true)} aria-label="Nova frase">
+        <Icon name="plus" size={26} stroke={2.4} />
+      </button>
+      {sheet && (
+        <Modal title="Nova frase" onClose={() => setSheet(false)}>
+          <div className="composer open" style={{ margin: 0 }}>
+            <ComposerBody autofocus onDone={() => setSheet(false)} />
+          </div>
+        </Modal>
+      )}
+    </div>
   );
 }
 
@@ -186,9 +248,9 @@ function useLongPress(onLong: (el: HTMLElement) => void) {
       start.current = { x: e.clientX, y: e.clientY };
       cancel();
       timer.current = setTimeout(() => {
-        navigator.vibrate?.(18);
+        navigator.vibrate?.(15);
         onLong(el);
-      }, 550);
+      }, 520);
     },
     onPointerMove: (e: React.PointerEvent) => {
       if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 8) cancel();
@@ -212,7 +274,7 @@ function ago(ts: number): string {
   return d === 1 ? 'ontem' : `há ${d} dias`;
 }
 
-export function PhraseRow({ phrase }: { phrase: Phrase }) {
+export function PhraseItem({ phrase }: { phrase: Phrase }) {
   const toast = useStore((s) => s.toast);
   const voiceId = useStore((s) => s.shared.elevenVoiceId);
   const [leaving, setLeaving] = useState(false);
@@ -228,31 +290,16 @@ export function PhraseRow({ phrase }: { phrase: Phrase }) {
     setTimeout(async () => {
       await fn();
       toast(msg, 'success', { label: 'Desfazer', run: () => void restorePhrase(phrase.id) });
-    }, 260);
+    }, 220);
   };
-
-  const deleteItems: MenuItem[] = [
-    { section: 'Apagar' },
-    { label: 'Apagar frase (foi aprendida)', icon: 'graduation', onClick: () => leave(() => learnPhrase(phrase), 'Frase aprendida — +1 nas estatísticas') },
-    { label: 'Apagar frase (Digitação incorreta)', icon: 'trash', danger: true, onClick: () => leave(() => discardPhrase(phrase), 'Frase descartada — saiu das adicionadas e não conta como aprendida') },
-  ];
+  const learned = () => leave(() => learnPhrase(phrase), 'Frase aprendida');
+  const typo = () => leave(() => discardPhrase(phrase), 'Frase descartada — não conta nas estatísticas');
 
   const prompt = async (kind: PromptKind) => {
     const text = buildPrompt(kind, { text: phrase.text, highlights: highlightsOf(phrase) });
     const r = await platform.openAIs(text);
-    toast(r === 'opened' ? 'Prompt copiado e enviado para Gemini, ChatGPT e Claude' : 'Prompt copiado', 'success');
+    toast(r === 'opened' ? 'Prompt copiado e aberto no Gemini, ChatGPT e Claude' : 'Prompt copiado', 'success');
   };
-
-  const promptItems = (): MenuItem[] => {
-    const hl = highlightsOf(phrase).length > 0;
-    return [
-      { section: hl ? 'Prompts (ênfase no destaque)' : 'Prompts para as IAs' },
-      { label: 'Tradução PT-BR (estrutura do inglês)', icon: 'languages', onClick: () => void prompt('translate') },
-      { label: 'Definição em inglês', icon: 'book', onClick: () => void prompt('define') },
-    ];
-  };
-
-  const longPress = useLongPress((el) => menu.open((el.querySelector('.acts .del') as HTMLElement) ?? el, deleteItems));
 
   const audio = () =>
     run('audio', async () => {
@@ -264,52 +311,63 @@ export function PhraseRow({ phrase }: { phrase: Phrase }) {
       await playPhrase(p);
     });
 
+  const allItems = (): MenuItem[] => [
+    { label: fresh ? 'Ouvir' : 'Gerar e ouvir áudio', icon: 'volume', onClick: audio },
+    { label: 'Tradução PT-BR (IAs)', icon: 'languages', onClick: () => void prompt('translate') },
+    { label: 'Definição em inglês (IAs)', icon: 'sparkles', onClick: () => void prompt('define') },
+    { label: 'Flashcard e Anki', icon: 'layers', onClick: () => setCard(true) },
+    ...(phrase.back ? [{ label: showBack ? 'Esconder verso' : 'Ver verso', icon: 'eye' as const, onClick: () => setShowBack(!showBack) }] : []),
+    { label: 'Editar', icon: 'pen', onClick: () => setEdit(true) },
+    { section: 'Apagar' },
+    { label: 'Apagar frase (foi aprendida)', icon: 'check', onClick: learned },
+    { label: 'Apagar frase (Digitação incorreta)', icon: 'trash', danger: true, onClick: typo },
+  ];
+
+  const longPress = useLongPress((el) => menu.open(el, allItems()));
+
   return (
-    <div className={`prow ${leaving ? 'leaving' : ''}`} {...longPress}>
-      <span className="id">#{phrase.id.replace(/-/g, '').slice(0, 3)}</span>
-      <span className="when">{ago(phrase.createdAt)}</span>
-      <div style={{ minWidth: 0 }}>
-        <div className="meta-m">
-          <span>#{phrase.id.replace(/-/g, '').slice(0, 3)}</span>
+    <div className={`pitem ${leaving ? 'leaving' : ''}`} {...longPress}>
+      <button className="check" onClick={learned} title="Aprendi (apaga e conta nas estatísticas)" aria-label="Aprendi">
+        <Icon name="check" size={14} stroke={3} />
+      </button>
+      <div className="ptext">
+        <RichPhrase html={phrase.html} />
+        <div className="pmeta">
           <span>{ago(phrase.createdAt)}</span>
-          {phrase.audio && <span className={fresh ? 'on' : ''}>♪ áudio</span>}
-          {phrase.back && <span className="on">verso</span>}
+          {phrase.audio && <span className={fresh ? 'tag' : ''}>áudio</span>}
+          {phrase.back && (
+            <button className="tag" style={{ border: 0, background: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }} onClick={() => setShowBack(!showBack)}>
+              verso
+            </button>
+          )}
           {phrase.anki && <span>anki</span>}
         </div>
-        <RichPhrase html={phrase.html} />
+        {showBack && phrase.back && <div className="phrase-back" dangerouslySetInnerHTML={{ __html: phrase.back }} />}
       </div>
-      <span className="st">
-        {phrase.audio && <span className={fresh ? 'on' : ''} title={fresh ? 'com áudio' : 'áudio desatualizado'}>♪</span>}
-        {phrase.back && <span className="on">verso</span>}
-        {phrase.anki && <span>anki</span>}
-        {!phrase.audio && !phrase.back && !phrase.anki && <span>—</span>}
-      </span>
-      <div className="acts">
+      <div className="pacts">
         <button className="icon-btn sm" title={fresh ? 'Ouvir' : 'Gerar áudio (ElevenLabs)'} onClick={audio}>
           {busy === 'audio' ? <Spinner size={14} /> : <Icon name="volume" size={16} />}
         </button>
-        {phrase.back && (
-          <button className={`icon-btn sm ${showBack ? 'on' : ''}`} title="Mostrar verso" onClick={() => setShowBack(!showBack)}>
-            <Icon name="eye" size={16} />
-          </button>
-        )}
-        <button className="icon-btn sm" title="Prompts para as IAs (tradução / definição)" onClick={(e) => menu.open(e.currentTarget, promptItems())}>
+        <button
+          className="icon-btn sm"
+          title="Perguntar às IAs"
+          onClick={(e) =>
+            menu.open(e.currentTarget, [
+              { section: highlightsOf(phrase).length ? 'IAs · ênfase no destaque' : 'Perguntar às IAs' },
+              { label: 'Tradução PT-BR', icon: 'languages', onClick: () => void prompt('translate') },
+              { label: 'Definição em inglês', icon: 'book', onClick: () => void prompt('define') },
+            ])
+          }
+        >
           <Icon name="sparkles" size={16} />
         </button>
-        <button className="icon-btn sm" title="Flashcard / Anki" onClick={() => setCard(true)}>
+        <button className="icon-btn sm" title="Flashcard e Anki" onClick={() => setCard(true)}>
           <Icon name="layers" size={16} />
         </button>
-        <button className="icon-btn sm" title="Editar" onClick={() => setEdit(true)}>
-          <Icon name="pen" size={15} />
-        </button>
-        <button className="icon-btn sm del" title="Apagar" onClick={(e) => menu.open(e.currentTarget, deleteItems)}>
-          <Icon name="trash" size={15} />
-        </button>
-        <button className="learn-btn" title="Apagar frase (foi aprendida)" onClick={() => leave(() => learnPhrase(phrase), 'Frase aprendida — +1 nas estatísticas')}>
-          <Icon name="check" size={13} stroke={3} /> aprendi
+        <button className="icon-btn sm" title="Mais" onClick={(e) => menu.open(e.currentTarget, allItems())}>
+          <Icon name="more" size={16} />
         </button>
       </div>
-      {showBack && phrase.back && <div className="back-line phrase-back" dangerouslySetInnerHTML={{ __html: phrase.back }} />}
       {menu.node}
       {card && <FlashcardModal phrase={phrase} onClose={() => setCard(false)} />}
       {edit && <EditPhrase phrase={phrase} onClose={() => setEdit(false)} />}
@@ -330,12 +388,10 @@ function EditPhrase({ phrase, onClose }: { phrase: Phrase; onClose: () => void }
   return (
     <Modal
       title="Editar frase"
-      icon="pen"
-      accent="var(--g-editor)"
       onClose={onClose}
       footer={
         <button className="btn primary" onClick={save}>
-          <Icon name="check" size={16} /> Salvar
+          Salvar
         </button>
       }
     >

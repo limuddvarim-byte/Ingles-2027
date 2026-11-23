@@ -49,8 +49,8 @@ export function SettingsPage() {
   const [fontTarget, setFontTarget] = useState<'phraseFont' | 'uiFont'>('phraseFont');
 
   return (
-    <div className="page" style={{ '--accent': 'var(--g-settings)', '--accent-glow': 'rgba(99,102,241,.55)' } as CSSProperties}>
-      <PageHead eyebrow="Ajustes" icon="settings" title={<span>Deixe a tríade <span className="grad-text">com a sua cara</span></span>} sub={`Inglês ${APP_VERSION} · ${platform.label}`} />
+    <div className="page wide">
+      <PageHead eyebrow="Ajustes" icon="settings" title="Ajustes" sub={`Inglês ${APP_VERSION} · ${platform.label}`} />
 
       <div className="grid cols-2" style={{ alignItems: 'start' }}>
         <div className="col" style={{ gap: 16 }}>

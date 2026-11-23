@@ -2,10 +2,10 @@ import type { LauncherItem, LocalSettings, SharedSettings, StreamingService } fr
 import { EMBEDDED_SYNC_TOKEN, EMBEDDED_SYNC_URL } from './build';
 
 export const DEFAULT_SHARED: SharedSettings = {
-  theme: 'amoled',
+  theme: 'auto',
   phraseColor: 'default',
-  uiFont: 'Inter',
-  phraseFont: 'Outfit',
+  uiFont: 'Plus Jakarta Sans',
+  phraseFont: 'Lora',
   phraseSize: 20,
   elevenApiKey: '',
   elevenVoiceId: '',

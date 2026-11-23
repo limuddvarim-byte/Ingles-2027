@@ -1,5 +1,5 @@
 // Aba de tempo de streaming em inglês: diário, mensal, por serviço, com gráficos.
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { remove } from '../core/db';
 import { SERVICE_MAP, SERVICES } from '../core/defaults';
 import { isLive, subscribeLive } from '../core/live';
@@ -19,7 +19,7 @@ import { Kpi, MonthNav } from './stats';
 const mins = (s: number) => `${Math.round(s / 60)}min`;
 const hrs = (s: number) => (s >= 3600 ? `${(s / 3600).toFixed(1).replace('.', ',')}h` : mins(s));
 
-export function StreamingPage() {
+export function StreamingPage({ tabs }: { tabs?: ReactNode }) {
   const watch = useStore((s) => s.watch);
   const shared = useStore((s) => s.shared);
   const setShared = useStore((s) => s.setShared);
@@ -51,14 +51,15 @@ export function StreamingPage() {
   const togglePause = (id: StreamingService, paused: boolean) => setShared({ trackingPaused: { ...shared.trackingPaused, [id]: paused } });
 
   return (
-    <div className="page" style={{ '--accent': 'var(--g-stream)', '--accent-glow': 'rgba(249,115,22,.55)' } as CSSProperties}>
+    <div className="page wide">
       <PageHead
         eyebrow="Streaming"
         icon="tv"
-        title={<span>Tempo de <span className="grad-text">inglês assistido</span></span>}
+        title="Estatísticas"
         sub={platform.kind === 'extension' ? 'Contado automaticamente quando você dá play nos serviços.' : platform.kind === 'android' ? 'Contado pelo app (notificações de mídia/acessibilidade) e pela extensão.' : 'Contado pela extensão e pelo app; também dá para adicionar manualmente.'}
         right={
           <>
+            {tabs}
             <button className="btn" onClick={() => setShared({ trackingAllPaused: !shared.trackingAllPaused })}>
               <Icon name={shared.trackingAllPaused ? 'play' : 'pause'} size={15} /> {shared.trackingAllPaused ? 'Retomar contagem' : 'Pausar tudo'}
             </button>
@@ -83,15 +84,15 @@ export function StreamingPage() {
 
       <div className="grid cols-3" style={{ alignItems: 'stretch' }}>
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <Ring value={goal ? todayT.total / goal : 0} size={150} stroke={14} colors={[colors.accent, colors.accent]}>
+          <Ring value={goal ? todayT.total / goal : 0} size={128} stroke={12} colors={[colors.accent, colors.accent]}>
             <b>{formatDuration(todayT.total)}</b>
             <div className="small muted" style={{ fontWeight: 700 }}>hoje</div>
           </Ring>
-          <div className="col" style={{ gap: 4 }}>
+          <div className="col" style={{ gap: 4, minWidth: 0 }}>
             <div className="label">Meta diária</div>
             <div style={{ fontSize: 22, fontWeight: 800 }}>{shared.dailyGoalMinutes} min</div>
             <div className="small muted">{goal && todayT.total >= goal ? 'Meta batida! 🏆' : `Faltam ${formatDuration(Math.max(0, goal - todayT.total))}`}</div>
-            <div className="row" style={{ gap: 4 }}>
+            <div className="row wrap" style={{ gap: 4 }}>
               {[30, 60, 90, 120].map((g) => (
                 <button key={g} className={`btn sm ${shared.dailyGoalMinutes === g ? 'primary' : ''}`} style={{ padding: '0 8px' }} onClick={() => setShared({ dailyGoalMinutes: g })}>
                   {g}
@@ -100,8 +101,8 @@ export function StreamingPage() {
             </div>
           </div>
         </div>
-        <Kpi icon="calendar" gradient="var(--g-stream)" value={hrs(monthT.total)} label={`Total em ${monthLabel(month)}`} sub={`Média de ${mins(monthT.total / Math.max(1, elapsedDays))} por dia`} color="#f97316" />
-        <Kpi icon="flame" gradient="var(--g-gold)" value={`${streak} ${streak === 1 ? 'dia' : 'dias'}`} label="Sequência assistindo" sub="Dias seguidos com algum tempo" color="#facc15" />
+        <Kpi icon="calendar" gradient="var(--g-stream)" value={hrs(monthT.total)} label={`Total em ${monthLabel(month)}`} sub={`Média de ${mins(monthT.total / Math.max(1, elapsedDays))} por dia`} />
+        <Kpi icon="flame" gradient="var(--g-gold)" value={`${streak} ${streak === 1 ? 'dia' : 'dias'}`} label="Sequência assistindo" sub="Dias seguidos com algum tempo" />
       </div>
 
       <div className="grid cols-2 mt">
