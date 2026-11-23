@@ -9,6 +9,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.LocaleList;
+import android.os.Message;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,7 +32,9 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.webkit.Profile;
 import androidx.webkit.ProfileStore;
+import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
@@ -39,6 +42,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -71,6 +75,10 @@ public class CloneActivity extends Activity {
     private WebChromeClient.CustomViewCallback customCallback;
     private ValueCallback<Uri[]> fileCallback;
     private Locale previousLocale;
+    private String userAgent = UA;
+    private final List<String> profiles = new ArrayList<>();
+    /** Janela pop-up aberta pelo site (login com Google/Apple, "abrir em nova aba"…). */
+    private WebView popup;
 
     private static final String WATCH_JS =
         "(function(){if(window.__inglesWatch)return;window.__inglesWatch=1;setInterval(function(){var v=document.querySelectorAll('video');" +
@@ -150,10 +158,15 @@ public class CloneActivity extends Activity {
         titles.addView(headerTitle);
         titles.addView(sub);
         header.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        header.addView(roundButton("↻", v -> { if (!webViews.isEmpty()) webViews.get(current).reload(); }));
+        header.addView(roundButton("↻", v -> {
+            if (popup != null) popup.reload();
+            else if (!webViews.isEmpty()) webViews.get(current).reload();
+        }));
         View gap = new View(this);
         header.addView(gap, new LinearLayout.LayoutParams(dp(this, 8), 1));
-        header.addView(roundButton("✕", v -> finish()));
+        header.addView(roundButton("✕", v -> {
+            if (!closePopup()) finish();
+        }));
         root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -187,6 +200,13 @@ public class CloneActivity extends Activity {
         });
 
         CookieManager.getInstance().setAcceptCookie(true);
+        // User-agent real do WebView (versão do Chrome igual às client hints, senão o Cloudflare do
+        // claude.ai fica em loop de verificação), só sem a marca "wv" que bloqueia o login do Google.
+        try {
+            userAgent = WebSettings.getDefaultUserAgent(this).replace("; wv)", ")").replaceAll("Version/\\d+(\\.\\d+)* ", "");
+        } catch (Exception ignored) {
+            userAgent = UA;
+        }
 
         try {
             JSONArray tabs = new JSONArray(getIntent().getStringExtra(EXTRA_TABS));
@@ -239,26 +259,8 @@ public class CloneActivity extends Activity {
         titles.add(title);
         tabColors.add(colors);
         WebView wv = new WebView(this);
-        // Cada clone com seu próprio perfil (conta separada), quando o WebView do aparelho suporta.
-        try {
-            if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
-                ProfileStore.getInstance().getOrCreateProfile("clone-" + profile);
-                WebViewCompat.setProfile(wv, "clone-" + profile);
-            }
-        } catch (Throwable ignored) {
-        }
-        WebSettings s = wv.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setDatabaseEnabled(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setLoadWithOverviewMode(true);
-        s.setUseWideViewPort(true);
-        s.setSupportZoom(true);
-        s.setBuiltInZoomControls(true);
-        s.setDisplayZoomControls(false);
-        s.setUserAgentString(UA);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(wv, true);
+        configure(wv, profile);
+        profiles.add(profile);
         wv.setBackgroundColor(Color.BLACK);
         wv.addJavascriptInterface(new WatchBridge(service), "InglesWatch");
         services.add(service);
@@ -266,13 +268,7 @@ public class CloneActivity extends Activity {
         wv.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
-                String scheme = req.getUrl().getScheme();
-                if ("http".equals(scheme) || "https".equals(scheme)) return false;
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, req.getUrl()));
-                } catch (Exception ignored) {
-                }
-                return true;
+                return openExternal(req.getUrl());
             }
 
             @Override
@@ -292,6 +288,11 @@ public class CloneActivity extends Activity {
                     progress.setProgress(p);
                     progress.setVisibility(p >= 100 ? View.INVISIBLE : View.VISIBLE);
                 }
+            }
+
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                return openPopup(profiles.get(index), resultMsg);
             }
 
             @Override
@@ -342,7 +343,99 @@ public class CloneActivity extends Activity {
         chips.add(chip);
     }
 
+    /** Mesmas configurações em todas as WebViews do clone (abas e pop-ups). */
+    @SuppressLint("SetJavaScriptEnabled")
+    private void configure(WebView wv, String profile) {
+        // Cada clone com seu próprio perfil (conta separada), quando o WebView do aparelho suporta.
+        try {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                Profile prof = ProfileStore.getInstance().getOrCreateProfile("clone-" + profile);
+                prof.getCookieManager().setAcceptCookie(true);
+                WebViewCompat.setProfile(wv, "clone-" + profile);
+            }
+        } catch (Throwable ignored) {
+        }
+        WebSettings s = wv.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setLoadWithOverviewMode(true);
+        s.setUseWideViewPort(true);
+        s.setSupportZoom(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
+        // Logins por pop-up (Google, Apple) precisam de janelas de verdade, com window.opener.
+        s.setSupportMultipleWindows(true);
+        s.setJavaScriptCanOpenWindowsAutomatically(true);
+        s.setUserAgentString(userAgent);
+        // Não envia o cabeçalho X-Requested-With (com o pacote do app), usado para barrar logins em WebView.
+        try {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
+                WebSettingsCompat.setRequestedWithHeaderOriginAllowList(s, Collections.emptySet());
+            }
+        } catch (Throwable ignored) {
+        }
+        CookieManager.getInstance().setAcceptThirdPartyCookies(wv, true);
+    }
+
+    private boolean openExternal(Uri uri) {
+        String scheme = uri.getScheme();
+        if ("http".equals(scheme) || "https".equals(scheme)) return false;
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, uri));
+        } catch (Exception ignored) {
+        }
+        return true;
+    }
+
+    /** Abre a janela pedida pelo site por cima da aba, no mesmo perfil, mantendo o vínculo com a página de origem. */
+    @SuppressLint("SetJavaScriptEnabled")
+    private boolean openPopup(String profile, Message resultMsg) {
+        closePopup();
+        WebView child = new WebView(this);
+        configure(child, profile);
+        child.setBackgroundColor(Color.WHITE);
+        child.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
+                return openExternal(req.getUrl());
+            }
+        });
+        child.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onCloseWindow(WebView window) {
+                closePopup();
+            }
+
+            @Override
+            public void onProgressChanged(WebView view, int p) {
+                progress.setProgress(p);
+                progress.setVisibility(p >= 100 ? View.INVISIBLE : View.VISIBLE);
+            }
+        });
+        popup = child;
+        content.addView(child, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+        transport.setWebView(child);
+        resultMsg.sendToTarget();
+        return true;
+    }
+
+    private boolean closePopup() {
+        if (popup == null) return false;
+        WebView p = popup;
+        popup = null;
+        content.removeView(p);
+        try {
+            p.destroy();
+        } catch (Exception ignored) {
+        }
+        return true;
+    }
+
     private void select(int i) {
+        closePopup();
         current = i;
         for (int k = 0; k < webViews.size(); k++) {
             boolean on = k == i;
@@ -380,6 +473,11 @@ public class CloneActivity extends Activity {
             if (customCallback != null) customCallback.onCustomViewHidden();
             return;
         }
+        if (popup != null) {
+            if (popup.canGoBack()) popup.goBack();
+            else closePopup();
+            return;
+        }
         if (!webViews.isEmpty() && webViews.get(current).canGoBack()) {
             webViews.get(current).goBack();
             return;
@@ -391,10 +489,20 @@ public class CloneActivity extends Activity {
     protected void onPause() {
         super.onPause();
         CookieManager.getInstance().flush();
+        try {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                for (String name : profiles) {
+                    Profile prof = ProfileStore.getInstance().getProfile("clone-" + name);
+                    if (prof != null) prof.getCookieManager().flush();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
     protected void onDestroy() {
+        closePopup();
         for (WebView w : webViews) {
             try {
                 w.destroy();
