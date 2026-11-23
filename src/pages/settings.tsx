@@ -66,7 +66,7 @@ export function SettingsPage() {
               ).map(([v, label, bg, card]) => (
                 <button key={v} className={`theme-opt ${shared.theme === v ? 'on' : ''}`} onClick={() => setShared({ theme: v })}>
                   <div className="tprev" style={{ background: bg, border: '1px solid var(--border)' }}>
-                    <i style={{ background: 'linear-gradient(90deg,#c2389b,#2e44b8)' }} />
+                    <i style={{ background: '#14d2c8' }} />
                     <i style={{ background: card, border: '1px solid rgba(128,128,128,.3)' }} />
                     <i style={{ background: '#14d2c8' }} />
                   </div>

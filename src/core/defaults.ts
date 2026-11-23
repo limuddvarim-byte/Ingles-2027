@@ -4,7 +4,7 @@ import { EMBEDDED_SYNC_TOKEN, EMBEDDED_SYNC_URL } from './build';
 export const DEFAULT_SHARED: SharedSettings = {
   theme: 'amoled',
   phraseColor: 'default',
-  uiFont: 'Space Grotesk',
+  uiFont: 'Inter',
   phraseFont: 'Outfit',
   phraseSize: 20,
   elevenApiKey: '',

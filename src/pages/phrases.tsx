@@ -1,5 +1,5 @@
 // Aba "Frases": lista, estatísticas do dia, áudio, prompts e flashcards.
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { buildPrompt, type PromptKind } from '../core/prompts';
 import { pendingPhrases, todayStats } from '../core/stats';
 import type { Phrase } from '../core/types';
@@ -16,40 +16,19 @@ import { RichPhrase } from '../ui/RichPhrase';
 export function TodayStrip() {
   const phrases = useStore((s) => s.phrases);
   const t = useMemo(() => todayStats(phrases), [phrases]);
-  const pct = t.rate.pct === null ? 0 : Math.min(100, t.rate.pct);
   return (
-    <div className="stat-strip">
-      <div className="mini-stat">
-        <div className="ms-top">
-          <b style={{ color: 'var(--cyan)' }}>{t.added}</b>
-          <div className="ms-ico" style={{ background: 'var(--g-phrases)' }}>
-            <Icon name="plus" size={17} stroke={2.6} />
-          </div>
-        </div>
+    <div className="kpis" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <div>
         <span>Frases adicionadas (para aprender) hoje</span>
-        <i className="bar" style={{ width: `${Math.min(100, t.added * 10)}%`, background: 'var(--g-phrases)', color: 'var(--cyan)' }} />
+        <b>{String(t.added).padStart(2, '0')}</b>
       </div>
-      <div className="mini-stat">
-        <div className="ms-top">
-          <b style={{ color: 'var(--lime)' }}>{t.learned}</b>
-          <div className="ms-ico" style={{ background: 'var(--g-stats)' }}>
-            <Icon name="graduation" size={17} stroke={2.4} />
-          </div>
-        </div>
+      <div>
         <span>Frases aprendidas hoje</span>
-        <i className="bar" style={{ width: `${Math.min(100, t.learned * 10)}%`, background: 'var(--g-stats)', color: 'var(--lime)' }} />
+        <b>{String(t.learned).padStart(2, '0')}</b>
       </div>
-      <div className="mini-stat" title={t.rate.description}>
-        <div className="ms-top">
-          <b style={{ color: t.rate.color }}>{t.rate.label}</b>
-          <div className="ms-ico" style={{ background: t.rate.color, boxShadow: `0 0 18px -4px ${t.rate.color}` }}>
-            <Icon name="target" size={17} stroke={2.4} />
-          </div>
-        </div>
-        <span>
-          Média de aprendizado<span className="hide-narrow"> · {t.rate.description}</span>
-        </span>
-        <i className="bar" style={{ width: `${pct}%`, background: t.rate.color, color: t.rate.color }} />
+      <div title={t.rate.description}>
+        <span>Média de aprendizado</span>
+        <b style={{ color: t.rate.tone === 'none' ? undefined : t.rate.color }}>{t.rate.label}</b>
       </div>
     </div>
   );
@@ -59,7 +38,6 @@ export function PhrasesSection({ compactHeader = false, hideStats = false, index
   const phrases = useStore((s) => s.phrases);
   const shared = useStore((s) => s.shared);
   const toast = useStore((s) => s.toast);
-  const seedEditor = useStore((s) => s.seedEditor);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'noaudio' | 'noback'>('all');
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
@@ -92,64 +70,63 @@ export function PhrasesSection({ compactHeader = false, hideStats = false, index
     <section>
       {!compactHeader && (
         <div className="section-head">
-          <div>
-            <span className="idx">
-              [ <b>{index}</b> ] frases
-            </span>
-            <h2>
-              Para aprender<span className="count">{String(pending.length).padStart(2, '0')}</span>
-            </h2>
-          </div>
+          <span>
+            frases · <b>{pending.length}</b> na fila
+          </span>
+          <span className="spacer" />
+          <span className="hide-narrow">toque na frase = copiar · pressione = apagar</span>
         </div>
       )}
       {!hideStats && <TodayStrip />}
 
-      <div className="toolbar-sticky mt">
-        <div className="row wrap">
-          <div className="search">
-            <Icon name="search" size={17} />
-            <input className="input" placeholder="Buscar frase ou tradução…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <select className="select" style={{ width: 'auto' }} value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
-            <option value="all">Todas</option>
-            <option value="noaudio">Sem áudio</option>
-            <option value="noback">Sem verso</option>
-          </select>
-          <button className="btn" onClick={runBatch} disabled={!!batch} title="Gerar áudio do ElevenLabs para todas as frases de uma vez" style={{ '--accent': 'var(--g-editor)' } as CSSProperties}>
-            {batch ? <Spinner /> : <Icon name="headphones" size={17} />}
-            {batch ? `${batch.done}/${batch.total}` : `Áudio p/ todas${missingAudio ? ` (${missingAudio})` : ''}`}
-          </button>
-          <button className="btn primary" style={{ '--accent': 'var(--g-phrases)', '--accent-glow': 'rgba(20,210,200,.6)' } as CSSProperties} onClick={() => setQuick(true)}>
-            <Icon name="plus" size={17} stroke={2.6} /> Nova frase
-          </button>
+      <div className="ptool">
+        <div className="search">
+          <Icon name="search" size={15} />
+          <input className="input" placeholder="buscar frase ou tradução…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        <select className="select" style={{ width: 'auto' }} value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+          <option value="all">todas</option>
+          <option value="noaudio">sem áudio</option>
+          <option value="noback">sem verso</option>
+        </select>
+        <button className="btn" onClick={runBatch} disabled={!!batch} title="Gerar áudio do ElevenLabs para todas as frases de uma vez">
+          {batch ? <Spinner size={14} /> : <Icon name="headphones" size={15} />}
+          {batch ? `${batch.done}/${batch.total}` : `áudio p/ todas${missingAudio ? ` (${missingAudio})` : ''}`}
+        </button>
+        <button className="btn primary" onClick={() => setQuick(true)}>
+          <Icon name="plus" size={15} stroke={2.6} /> nova frase
+        </button>
         {batch && batch.total > 0 && (
-          <div className="progress" style={{ marginTop: 10 }}>
-            <i style={{ width: `${(batch.done / batch.total) * 100}%`, background: 'var(--g-editor)' }} />
+          <div className="progress" style={{ flexBasis: '100%', marginTop: 4 }}>
+            <i style={{ width: `${(batch.done / batch.total) * 100}%`, background: 'var(--a)' }} />
           </div>
         )}
       </div>
 
       {list.length === 0 ? (
-        <div className="card">
-          <Empty
-            icon="quote"
-            accent="var(--g-phrases)"
-            title={pending.length ? 'Nada encontrado' : 'Nenhuma frase ainda'}
-            text={pending.length ? 'Tente outra busca ou filtro.' : 'Adicione frases que você encontrar em séries, vídeos e posts. Ao apagar uma frase, ela conta como aprendida.'}
-            action={
-              !pending.length && (
-                <button className="btn primary" onClick={() => seedEditor('')} style={{ '--accent': 'var(--g-phrases)' } as CSSProperties}>
-                  <Icon name="pen" size={16} /> Abrir editor
-                </button>
-              )
-            }
-          />
-        </div>
+        <Empty
+          icon="quote"
+          title={pending.length ? 'nada encontrado' : 'nenhuma frase ainda'}
+          text={pending.length ? 'Tente outra busca ou filtro.' : 'Adicione frases de séries, vídeos e posts. Apagar como “aprendida” conta nas estatísticas.'}
+          action={
+            !pending.length && (
+              <button className="btn primary" onClick={() => setQuick(true)}>
+                <Icon name="plus" size={15} /> nova frase
+              </button>
+            )
+          }
+        />
       ) : (
-        <div className="phrase-list">
-          {list.map((p, i) => (
-            <PhraseCard key={p.id} phrase={p} index={i} />
+        <div className="ptable">
+          <div className="prow-head">
+            <span>id</span>
+            <span>quando</span>
+            <span>frase</span>
+            <span>status</span>
+            <span style={{ textAlign: 'right' }}>ações</span>
+          </div>
+          {list.map((p) => (
+            <PhraseRow key={p.id} phrase={p} />
           ))}
         </div>
       )}
@@ -164,7 +141,7 @@ export function QuickAdd({ onClose }: { onClose: () => void }) {
   const save = async (again: boolean) => {
     const p = await addPhrase(ref.current?.getHTML() ?? '');
     if (!p) return toast('Escreva uma frase primeiro', 'error');
-    toast('Frase adicionada ✨', 'success');
+    toast('Frase adicionada', 'success');
     if (again) {
       ref.current?.clear();
       ref.current?.focus();
@@ -225,13 +202,6 @@ function useLongPress(onLong: (el: HTMLElement) => void) {
   };
 }
 
-/** Cor própria de cada frase (derivada do id). */
-function hueOf(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return [190, 280, 320, 160, 30, 220, 300, 95][h % 8];
-}
-
 function ago(ts: number): string {
   const m = Math.round((Date.now() - ts) / 60000);
   if (m < 1) return 'agora';
@@ -242,7 +212,7 @@ function ago(ts: number): string {
   return d === 1 ? 'ontem' : `há ${d} dias`;
 }
 
-export function PhraseCard({ phrase, index = 0 }: { phrase: Phrase; index?: number }) {
+export function PhraseRow({ phrase }: { phrase: Phrase }) {
   const toast = useStore((s) => s.toast);
   const voiceId = useStore((s) => s.shared.elevenVoiceId);
   const [leaving, setLeaving] = useState(false);
@@ -263,7 +233,7 @@ export function PhraseCard({ phrase, index = 0 }: { phrase: Phrase; index?: numb
 
   const deleteItems: MenuItem[] = [
     { section: 'Apagar' },
-    { label: 'Apagar frase (foi aprendida)', icon: 'graduation', onClick: () => leave(() => learnPhrase(phrase), 'Frase aprendida! 🎉 +1 nas estatísticas') },
+    { label: 'Apagar frase (foi aprendida)', icon: 'graduation', onClick: () => leave(() => learnPhrase(phrase), 'Frase aprendida — +1 nas estatísticas') },
     { label: 'Apagar frase (Digitação incorreta)', icon: 'trash', danger: true, onClick: () => leave(() => discardPhrase(phrase), 'Frase descartada — saiu das adicionadas e não conta como aprendida') },
   ];
 
@@ -282,7 +252,7 @@ export function PhraseCard({ phrase, index = 0 }: { phrase: Phrase; index?: numb
     ];
   };
 
-  const longPress = useLongPress((el) => menu.open(el.querySelector('.phrase-actions .del') as HTMLElement ?? el, deleteItems));
+  const longPress = useLongPress((el) => menu.open((el.querySelector('.acts .del') as HTMLElement) ?? el, deleteItems));
 
   const audio = () =>
     run('audio', async () => {
@@ -295,43 +265,51 @@ export function PhraseCard({ phrase, index = 0 }: { phrase: Phrase; index?: numb
     });
 
   return (
-    <div className={`phrase-card ${leaving ? 'leaving' : ''}`} style={{ animationDelay: `${Math.min(index, 12) * 35}ms`, '--hue': hueOf(phrase.id) } as CSSProperties} {...longPress}>
-      <div className="pc-top">
-        <span className="pc-id">#{phrase.id.replace(/-/g, '').slice(0, 4)}</span>
-        <span>{ago(phrase.createdAt)}</span>
-        <span className="pc-sp" />
-        {phrase.audio && <span className={`pill ${fresh ? 't' : ''}`}><Icon name="volume" size={10} /> {fresh ? 'áudio' : 'áudio antigo'}</span>}
-        {phrase.back && <span className="pill t"><Icon name="flip" size={10} /> verso</span>}
-        {phrase.anki && <span className="pill"><Icon name="layers" size={10} /> anki</span>}
+    <div className={`prow ${leaving ? 'leaving' : ''}`} {...longPress}>
+      <span className="id">#{phrase.id.replace(/-/g, '').slice(0, 3)}</span>
+      <span className="when">{ago(phrase.createdAt)}</span>
+      <div style={{ minWidth: 0 }}>
+        <div className="meta-m">
+          <span>#{phrase.id.replace(/-/g, '').slice(0, 3)}</span>
+          <span>{ago(phrase.createdAt)}</span>
+          {phrase.audio && <span className={fresh ? 'on' : ''}>♪ áudio</span>}
+          {phrase.back && <span className="on">verso</span>}
+          {phrase.anki && <span>anki</span>}
+        </div>
+        <RichPhrase html={phrase.html} />
       </div>
-      <RichPhrase html={phrase.html} />
-      {showBack && phrase.back && <div className="phrase-back" dangerouslySetInnerHTML={{ __html: phrase.back }} />}
-      <div className="phrase-actions">
-        <span className="spacer" />
+      <span className="st">
+        {phrase.audio && <span className={fresh ? 'on' : ''} title={fresh ? 'com áudio' : 'áudio desatualizado'}>♪</span>}
+        {phrase.back && <span className="on">verso</span>}
+        {phrase.anki && <span>anki</span>}
+        {!phrase.audio && !phrase.back && !phrase.anki && <span>—</span>}
+      </span>
+      <div className="acts">
         <button className="icon-btn sm" title={fresh ? 'Ouvir' : 'Gerar áudio (ElevenLabs)'} onClick={audio}>
-          {busy === 'audio' ? <Spinner /> : <Icon name="volume" size={17} />}
+          {busy === 'audio' ? <Spinner size={14} /> : <Icon name="volume" size={16} />}
         </button>
         {phrase.back && (
-          <button className={`icon-btn sm ${showBack ? 'on' : ''}`} title="Mostrar verso" onClick={() => setShowBack(!showBack)} style={{ '--accent': 'var(--g-phrases)' } as CSSProperties}>
-            <Icon name="eye" size={17} />
+          <button className={`icon-btn sm ${showBack ? 'on' : ''}`} title="Mostrar verso" onClick={() => setShowBack(!showBack)}>
+            <Icon name="eye" size={16} />
           </button>
         )}
-        <button className="icon-btn sm" title="Prompts para IAs" onClick={(e) => menu.open(e.currentTarget, promptItems())}>
-          <Icon name="sparkles" size={17} />
+        <button className="icon-btn sm" title="Prompts para as IAs (tradução / definição)" onClick={(e) => menu.open(e.currentTarget, promptItems())}>
+          <Icon name="sparkles" size={16} />
         </button>
         <button className="icon-btn sm" title="Flashcard / Anki" onClick={() => setCard(true)}>
-          <Icon name="layers" size={17} />
+          <Icon name="layers" size={16} />
         </button>
         <button className="icon-btn sm" title="Editar" onClick={() => setEdit(true)}>
-          <Icon name="pen" size={16} />
+          <Icon name="pen" size={15} />
         </button>
         <button className="icon-btn sm del" title="Apagar" onClick={(e) => menu.open(e.currentTarget, deleteItems)}>
-          <Icon name="trash" size={16} />
+          <Icon name="trash" size={15} />
         </button>
-        <button className="learn-btn" title="Apagar frase (foi aprendida)" onClick={() => leave(() => learnPhrase(phrase), 'Frase aprendida! 🎉 +1 nas estatísticas')}>
-          <Icon name="check" size={15} stroke={3} /> Aprendi
+        <button className="learn-btn" title="Apagar frase (foi aprendida)" onClick={() => leave(() => learnPhrase(phrase), 'Frase aprendida — +1 nas estatísticas')}>
+          <Icon name="check" size={13} stroke={3} /> aprendi
         </button>
       </div>
+      {showBack && phrase.back && <div className="back-line phrase-back" dangerouslySetInnerHTML={{ __html: phrase.back }} />}
       {menu.node}
       {card && <FlashcardModal phrase={phrase} onClose={() => setCard(false)} />}
       {edit && <EditPhrase phrase={phrase} onClose={() => setEdit(false)} />}

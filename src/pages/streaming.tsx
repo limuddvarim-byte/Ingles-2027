@@ -83,7 +83,7 @@ export function StreamingPage() {
 
       <div className="grid cols-3" style={{ alignItems: 'stretch' }}>
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <Ring value={goal ? todayT.total / goal : 0} size={150} stroke={14} colors={['#facc15', '#ef4444']}>
+          <Ring value={goal ? todayT.total / goal : 0} size={150} stroke={14} colors={[colors.accent, colors.accent]}>
             <b>{formatDuration(todayT.total)}</b>
             <div className="small muted" style={{ fontWeight: 700 }}>hoje</div>
           </Ring>
@@ -211,7 +211,7 @@ export function StreamingPage() {
             Horas por mês
           </div>
           <LineChart
-            series={[{ key: 'h', name: 'Horas', color: colors.service('crunchyroll') }]}
+            series={[{ key: 'h', name: 'Horas', color: colors.accent }]}
             format={(v) => `${v.toFixed(v < 10 ? 1 : 0).replace('.', ',')}h`}
             data={months.map((mk) => ({ label: monthLabel(mk, true), full: monthLabel(mk), values: { h: watchTotals(watch, (d) => d.startsWith(mk)).total / 3600 } }))}
           />

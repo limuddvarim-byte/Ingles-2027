@@ -120,7 +120,7 @@ export function StatsPage() {
             </span>
             Fila de frases ao longo do mês
           </div>
-          <LineChart series={[{ key: 'v', name: 'Na fila', color: colors.added }]} data={m.backlog.map((b) => ({ label: String(Number(b.day.slice(8))), full: dayLabel(b.day), values: { v: b.value } }))} />
+          <LineChart series={[{ key: 'v', name: 'Na fila', color: colors.accent }]} data={m.backlog.map((b) => ({ label: String(Number(b.day.slice(8))), full: dayLabel(b.day), values: { v: b.value } }))} />
           <p className="hint">Se a linha desce, você está aprendendo mais rápido do que adiciona.</p>
         </div>
         <div className="card">

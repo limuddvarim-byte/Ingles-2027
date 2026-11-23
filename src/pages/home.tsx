@@ -1,118 +1,66 @@
 // Página inicial: launcher bonito (software e app) + aba Frases.
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import logo from '../assets/logo.png';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { put, putMany, remove, uid } from '../core/db';
 import { SERVICES } from '../core/defaults';
 import { pendingPhrases, todayStats, watchTotals } from '../core/stats';
-import { dayKey, formatDuration, greeting } from '../core/time';
+import { dayKey, formatDuration } from '../core/time';
 import type { CloneKind, IconSpec, LauncherItem, StreamingService } from '../core/types';
 import { platform } from '../platform';
 import { useStore } from '../state/store';
 import { BRAND_IDS, TileIcon } from '../ui/BrandIcon';
 import { Icon, ICON_NAMES } from '../ui/Icon';
-import { Modal, Ring, Segmented, Switch } from '../ui/kit';
+import { Modal, Segmented, Switch } from '../ui/kit';
 import { PhrasesSection } from './phrases';
 
 export function HomePage() {
-  const phrases = useStore((s) => s.phrases);
-  const watch = useStore((s) => s.watch);
-  const goal = useStore((s) => s.shared.dailyGoalMinutes);
-  const go = useStore((s) => s.go);
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 15_000);
-    return () => clearInterval(t);
-  }, []);
-  const today = dayKey();
-  const watched = useMemo(() => watchTotals(watch, (d) => d === today).total, [watch, today]);
-  const pending = useMemo(() => pendingPhrases(phrases).length, [phrases]);
-  const t = useMemo(() => todayStats(phrases), [phrases]);
-  const goalPct = goal ? Math.min(1, watched / 60 / goal) : 0;
-  const dateLabel = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
-
   return (
-    <div className="page" style={{ '--accent': 'var(--g-home)', '--accent-glow': 'rgba(255,61,203,.6)' } as CSSProperties}>
-      <div className="bento">
-        <div className="tile-box b-hero">
-          <img className="logo-mark" src={logo} alt="" />
-          <div>
-            <span className="idx">
-              [ <b>00</b> ] {dateLabel}
-            </span>
-            <div className="clock">{now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-          </div>
-          <div>
-            <h1>
-              {greeting()}, <span className="grad-text" style={{ background: 'var(--holo)', WebkitBackgroundClip: 'text' }}>bora pro inglês?</span>
-            </h1>
-            <p>
-              {pending} {pending === 1 ? 'frase esperando' : 'frases esperando'} por você · meta de {goal} min de inglês hoje
-            </p>
-          </div>
-        </div>
-
-        <button className="tile-box b-ring" style={{ textAlign: 'left', color: 'inherit', font: 'inherit', cursor: 'pointer' }} onClick={() => go('streaming')}>
-          <Ring value={goalPct} size={132} stroke={13} colors={['#ffb020', '#ff3dcb']}>
-            <b style={{ fontSize: 22 }}>{Math.round(goalPct * 100)}%</b>
-            <div className="tiny muted mono">DA META</div>
-          </Ring>
-          <div>
-            <span className="idx">inglês assistido hoje</span>
-            <div className="big">{formatDuration(watched)}</div>
-            <div className="small muted" style={{ marginTop: 8 }}>
-              {goal && watched / 60 >= goal ? 'Meta batida! 🏆' : `Faltam ${formatDuration(Math.max(0, goal * 60 - watched))}`}
-            </div>
-            <span className="chip" style={{ marginTop: 12 }}>
-              <Icon name="tv" size={12} /> ver streaming
-            </span>
-          </div>
-        </button>
-
-        <div className="tile-box b-stat">
-          <span className="lbl">Frases adicionadas (para aprender) hoje</span>
-          <div>
-            <div className="num" style={{ color: 'var(--cyan)' }}>{String(t.added).padStart(2, '0')}</div>
-            <div className="meter">
-              <i style={{ width: `${Math.min(100, t.added * 10)}%`, background: 'var(--g-phrases)', color: 'var(--cyan)' }} />
-            </div>
-          </div>
-          <Icon name="plus" size={110} className="wm" />
-        </div>
-        <div className="tile-box b-stat">
-          <span className="lbl">Frases aprendidas hoje</span>
-          <div>
-            <div className="num" style={{ color: 'var(--lime)' }}>{String(t.learned).padStart(2, '0')}</div>
-            <div className="meter">
-              <i style={{ width: `${Math.min(100, t.learned * 10)}%`, background: 'var(--g-stats)', color: 'var(--lime)' }} />
-            </div>
-          </div>
-          <Icon name="graduation" size={110} className="wm" />
-        </div>
-        <div className="tile-box b-stat" title={t.rate.description}>
-          <span className="lbl">
-            Média de aprendizado<span className="hide-narrow"> · {t.rate.description}</span>
-          </span>
-          <div>
-            <div className="num" style={{ color: t.rate.color }}>{t.rate.label}</div>
-            <div className="meter">
-              <i style={{ width: `${t.rate.pct === null ? 0 : Math.min(100, t.rate.pct)}%`, background: t.rate.color, color: t.rate.color }} />
-            </div>
-          </div>
-          <Icon name="target" size={110} className="wm" />
-        </div>
-
-        {platform.features.launcher && (
-          <div className="tile-box b-launch">
-            <Launcher />
-          </div>
-        )}
-      </div>
-      <PhrasesSection hideStats index={platform.features.launcher ? '02' : '01'} />
+    <div className="page">
+      <KpiStrip />
+      {platform.features.launcher && <AppsStrip />}
+      <PhrasesSection hideStats />
     </div>
   );
 }
 
-function Launcher() {
+/** Números do dia: adicionadas, aprendidas, média, tempo assistido e fila. */
+export function KpiStrip() {
+  const phrases = useStore((s) => s.phrases);
+  const watch = useStore((s) => s.watch);
+  const goal = useStore((s) => s.shared.dailyGoalMinutes);
+  const today = dayKey();
+  const t = useMemo(() => todayStats(phrases), [phrases]);
+  const watched = useMemo(() => watchTotals(watch, (d) => d === today).total, [watch, today]);
+  const pending = useMemo(() => pendingPhrases(phrases).length, [phrases]);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    <div className="kpis">
+      <div>
+        <span>Frases adicionadas (para aprender) hoje</span>
+        <b>{t.added ? `+${pad(t.added)}` : '00'}</b>
+      </div>
+      <div>
+        <span>Frases aprendidas hoje</span>
+        <b>{pad(t.learned)}</b>
+      </div>
+      <div title={t.rate.description}>
+        <span>Média de aprendizado</span>
+        <b style={{ color: t.rate.tone === 'none' ? undefined : t.rate.color }}>{t.rate.label}</b>
+        <small>{t.rate.description.toLowerCase()}</small>
+      </div>
+      <div>
+        <span>Inglês assistido hoje</span>
+        <b>{formatDuration(watched).replace(' ', '')}</b>
+        <small>meta {goal} min · {goal ? Math.min(100, Math.round((watched / 60 / goal) * 100)) : 0}%</small>
+      </div>
+      <div>
+        <span>Na fila</span>
+        <b>{pad(pending)}</b>
+      </div>
+    </div>
+  );
+}
+
+function AppsStrip() {
   const items = useStore((s) => s.launcher);
   const toast = useStore((s) => s.toast);
   const [editing, setEditing] = useState(false);
@@ -141,25 +89,13 @@ function Launcher() {
   };
 
   return (
-    <section>
-      <div className="section-head" style={{ margin: '0 0 20px' }}>
-        <div>
-          <span className="idx">
-            [ <b>01</b> ] launcher {platform.kind === 'desktop' ? '· chrome estudos (perfil isolado)' : platform.kind === 'android' ? '· apps e clones isolados' : ''}
-          </span>
-          <h2>Seus apps</h2>
-        </div>
-        <div className="row">
-          <button className={`btn sm ${editing ? 'primary' : ''}`} onClick={() => setEditing(!editing)}>
-            <Icon name={editing ? 'check' : 'pen'} size={15} /> {editing ? 'Concluir' : 'Editar'}
-          </button>
-        </div>
-      </div>
-      <div className="launcher">
+    <>
+      <div className="apps">
+        <span className="lbl">apps</span>
         {visible.map((item) => (
           <button
             key={item.id}
-            className={`tile ${editing ? 'editing' : ''} ${drag === item.id ? 'dragging' : ''} ${over === item.id ? 'drop-target' : ''}`}
+            className={`app ${editing ? 'editing' : ''} ${drag === item.id ? 'dragging' : ''} ${over === item.id ? 'drop-target' : ''}`}
             onClick={() => open(item)}
             draggable={editing}
             onDragStart={() => setDrag(item.id)}
@@ -172,37 +108,42 @@ function Launcher() {
               setOver(item.id);
             }}
             onDrop={() => drag && reorder(drag, item.id)}
-            title={item.urls.join('\n')}
+            title={platform.kind === 'desktop' ? `${item.name} — abre no Chrome Estudos` : item.name}
           >
             {editing && (
               <span
-                className="tile-x"
+                className="x"
                 onClick={(e) => {
                   e.stopPropagation();
                   void remove('launcher', item.id);
                   toast(`“${item.name}” removido`, 'info');
                 }}
               >
-                <Icon name="x" size={13} stroke={3} />
+                <Icon name="x" size={11} stroke={3} />
               </span>
             )}
-            <span className="tile-icon" style={{ '--tile-glow': item.colors[0] } as CSSProperties}>
-              <TileIcon icon={item.icon} colors={item.colors} />
+            <span className="ico">
+              <TileIcon icon={item.icon} colors={item.colors} size={50} />
             </span>
-            <span className="tile-name">{item.name}</span>
-            {item.urls.length > 1 && <span className="badge">{item.urls.length}</span>}
+            <span className="nm">{item.name.toLowerCase()}</span>
+            {item.urls.length > 1 && <span className="count">×{item.urls.length}</span>}
           </button>
         ))}
-        <button className="tile add" onClick={() => setModal('new')}>
-          <span className="tile-icon">
-            <Icon name="plus" size={30} />
+        <button className="app add" onClick={() => setModal('new')} title="Adicionar atalho">
+          <span className="ico">
+            <Icon name="plus" size={18} />
           </span>
-          <span className="tile-name muted">Adicionar</span>
+          <span className="nm">novo</span>
+        </button>
+        <button className={`app add ${editing ? 'editing' : ''}`} onClick={() => setEditing(!editing)} title="Editar, reordenar e remover atalhos">
+          <span className="ico">
+            <Icon name={editing ? 'check' : 'pen'} size={16} />
+          </span>
+          <span className="nm">{editing ? 'ok' : 'editar'}</span>
         </button>
       </div>
-      {editing && <p className="hint" style={{ marginTop: 10 }}>Toque num atalho para editar nome, ícone e páginas · arraste para reordenar · ✕ para remover.</p>}
       {modal && <LauncherModal item={modal === 'new' ? null : modal} count={items.length} onClose={() => setModal(null)} />}
-    </section>
+    </>
   );
 }
 

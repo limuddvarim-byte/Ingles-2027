@@ -44,9 +44,11 @@ export function useChartColors() {
   const t = useResolvedTheme();
   const dark = t === 'amoled';
   return {
-    added: dark ? '#3987e5' : '#2a78d6',
-    learned: dark ? '#199e70' : '#1baf7a',
+    // direção Terminal: neutro + turquesa (cor só onde é categoria, ex.: serviços)
+    added: dark ? '#6b6b75' : '#a1a1aa',
+    learned: dark ? '#14d2c8' : '#0d9488',
+    accent: dark ? '#14d2c8' : '#0d9488',
     service: (s: StreamingService) => (dark ? SERVICE_MAP[s].chartDark : SERVICE_MAP[s].chart),
-    seq: dark ? '#199e70' : '#1baf7a',
+    seq: dark ? '#14d2c8' : '#0d9488',
   };
 }
