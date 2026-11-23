@@ -27,6 +27,8 @@ interface State {
   sync: SyncStatus;
   toasts: Toast[];
   editorSeed: { html: string; nonce: number } | null;
+  quickAdd: boolean;
+  setQuickAdd(v: boolean): void;
   go(page: Page): void;
   toast(text: string, tone?: Toast['tone'], action?: Toast['action']): void;
   dismissToast(id: number): void;
@@ -49,6 +51,10 @@ export const useStore = create<State>((set, get) => ({
   sync: getSyncStatus(),
   toasts: [],
   editorSeed: null,
+  quickAdd: false,
+  setQuickAdd(v) {
+    set({ quickAdd: v });
+  },
   go(page) {
     set({ page });
     try {

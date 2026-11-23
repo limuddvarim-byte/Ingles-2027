@@ -20,42 +20,42 @@ export function TodayStrip() {
   return (
     <div className="stat-strip">
       <div className="mini-stat">
-        <div className="ms-ico" style={{ background: 'var(--g-phrases)' }}>
-          <Icon name="plus" size={20} stroke={2.6} />
+        <div className="ms-top">
+          <b style={{ color: 'var(--cyan)' }}>{t.added}</b>
+          <div className="ms-ico" style={{ background: 'var(--g-phrases)' }}>
+            <Icon name="plus" size={17} stroke={2.6} />
+          </div>
         </div>
-        <div>
-          <b>{t.added}</b>
-          <span>Frases adicionadas (para aprender) hoje</span>
-        </div>
-        <i className="bar" style={{ width: `${Math.min(100, t.added * 10)}%`, background: 'var(--g-phrases)' }} />
+        <span>Frases adicionadas (para aprender) hoje</span>
+        <i className="bar" style={{ width: `${Math.min(100, t.added * 10)}%`, background: 'var(--g-phrases)', color: 'var(--cyan)' }} />
       </div>
       <div className="mini-stat">
-        <div className="ms-ico" style={{ background: 'var(--g-stats)' }}>
-          <Icon name="graduation" size={20} stroke={2.4} />
+        <div className="ms-top">
+          <b style={{ color: 'var(--lime)' }}>{t.learned}</b>
+          <div className="ms-ico" style={{ background: 'var(--g-stats)' }}>
+            <Icon name="graduation" size={17} stroke={2.4} />
+          </div>
         </div>
-        <div>
-          <b>{t.learned}</b>
-          <span>Frases aprendidas hoje</span>
-        </div>
-        <i className="bar" style={{ width: `${Math.min(100, t.learned * 10)}%`, background: 'var(--g-stats)' }} />
+        <span>Frases aprendidas hoje</span>
+        <i className="bar" style={{ width: `${Math.min(100, t.learned * 10)}%`, background: 'var(--g-stats)', color: 'var(--lime)' }} />
       </div>
       <div className="mini-stat" title={t.rate.description}>
-        <div className="ms-ico" style={{ background: t.rate.color, boxShadow: `0 8px 20px -8px ${t.rate.color}` }}>
-          <Icon name="target" size={20} stroke={2.4} />
-        </div>
-        <div>
+        <div className="ms-top">
           <b style={{ color: t.rate.color }}>{t.rate.label}</b>
-          <span>
-            Média de aprendizado<span className="hide-narrow"> · {t.rate.description}</span>
-          </span>
+          <div className="ms-ico" style={{ background: t.rate.color, boxShadow: `0 0 18px -4px ${t.rate.color}` }}>
+            <Icon name="target" size={17} stroke={2.4} />
+          </div>
         </div>
-        <i className="bar" style={{ width: `${pct}%`, background: t.rate.color }} />
+        <span>
+          Média de aprendizado<span className="hide-narrow"> · {t.rate.description}</span>
+        </span>
+        <i className="bar" style={{ width: `${pct}%`, background: t.rate.color, color: t.rate.color }} />
       </div>
     </div>
   );
 }
 
-export function PhrasesSection({ compactHeader = false }: { compactHeader?: boolean }) {
+export function PhrasesSection({ compactHeader = false, hideStats = false, index = '02' }: { compactHeader?: boolean; hideStats?: boolean; index?: string }) {
   const phrases = useStore((s) => s.phrases);
   const shared = useStore((s) => s.shared);
   const toast = useStore((s) => s.toast);
@@ -63,7 +63,7 @@ export function PhrasesSection({ compactHeader = false }: { compactHeader?: bool
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'noaudio' | 'noback'>('all');
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
-  const [quick, setQuick] = useState(false);
+  const setQuick = useStore((s) => s.setQuickAdd);
   const pending = useMemo(() => pendingPhrases(phrases), [phrases]);
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -91,18 +91,18 @@ export function PhrasesSection({ compactHeader = false }: { compactHeader?: bool
   return (
     <section>
       {!compactHeader && (
-        <div className="row between wrap" style={{ margin: '28px 0 14px' }}>
+        <div className="section-head">
           <div>
-            <div className="eyebrow" style={{ '--accent': 'var(--g-phrases)' } as CSSProperties}>
-              <Icon name="quote" size={14} /> Frases
-            </div>
-            <h2 style={{ margin: 0, fontSize: 22, letterSpacing: '-.02em' }}>
-              Para aprender <span className="muted" style={{ fontWeight: 600 }}>· {pending.length}</span>
+            <span className="idx">
+              [ <b>{index}</b> ] frases
+            </span>
+            <h2>
+              Para aprender<span className="count">{String(pending.length).padStart(2, '0')}</span>
             </h2>
           </div>
         </div>
       )}
-      <TodayStrip />
+      {!hideStats && <TodayStrip />}
 
       <div className="toolbar-sticky mt">
         <div className="row wrap">
@@ -153,12 +153,11 @@ export function PhrasesSection({ compactHeader = false }: { compactHeader?: bool
           ))}
         </div>
       )}
-      {quick && <QuickAdd onClose={() => setQuick(false)} />}
     </section>
   );
 }
 
-function QuickAdd({ onClose }: { onClose: () => void }) {
+export function QuickAdd({ onClose }: { onClose: () => void }) {
   const ref = useRef<RichEditorHandle>(null);
   const toast = useStore((s) => s.toast);
   const [html, setHtml] = useState('');
@@ -226,6 +225,23 @@ function useLongPress(onLong: (el: HTMLElement) => void) {
   };
 }
 
+/** Cor própria de cada frase (derivada do id). */
+function hueOf(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return [190, 280, 320, 160, 30, 220, 300, 95][h % 8];
+}
+
+function ago(ts: number): string {
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return 'agora';
+  if (m < 60) return `há ${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `há ${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'ontem' : `há ${d} dias`;
+}
+
 export function PhraseCard({ phrase, index = 0 }: { phrase: Phrase; index?: number }) {
   const toast = useStore((s) => s.toast);
   const voiceId = useStore((s) => s.shared.elevenVoiceId);
@@ -279,15 +295,18 @@ export function PhraseCard({ phrase, index = 0 }: { phrase: Phrase; index?: numb
     });
 
   return (
-    <div className={`phrase-card ${leaving ? 'leaving' : ''}`} style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }} {...longPress}>
+    <div className={`phrase-card ${leaving ? 'leaving' : ''}`} style={{ animationDelay: `${Math.min(index, 12) * 35}ms`, '--hue': hueOf(phrase.id) } as CSSProperties} {...longPress}>
+      <div className="pc-top">
+        <span className="pc-id">#{phrase.id.replace(/-/g, '').slice(0, 4)}</span>
+        <span>{ago(phrase.createdAt)}</span>
+        <span className="pc-sp" />
+        {phrase.audio && <span className={`pill ${fresh ? 't' : ''}`}><Icon name="volume" size={10} /> {fresh ? 'áudio' : 'áudio antigo'}</span>}
+        {phrase.back && <span className="pill t"><Icon name="flip" size={10} /> verso</span>}
+        {phrase.anki && <span className="pill"><Icon name="layers" size={10} /> anki</span>}
+      </div>
       <RichPhrase html={phrase.html} />
       {showBack && phrase.back && <div className="phrase-back" dangerouslySetInnerHTML={{ __html: phrase.back }} />}
       <div className="phrase-actions">
-        <div className="phrase-meta">
-          {phrase.audio && <span className={`pill ${fresh ? 't' : ''}`}><Icon name="volume" size={11} /> {fresh ? 'áudio' : 'áudio antigo'}</span>}
-          {phrase.back && <span className="pill t"><Icon name="flip" size={11} /> verso</span>}
-          {phrase.anki && <span className="pill"><Icon name="layers" size={11} /> anki</span>}
-        </div>
         <span className="spacer" />
         <button className="icon-btn sm" title={fresh ? 'Ouvir' : 'Gerar áudio (ElevenLabs)'} onClick={audio}>
           {busy === 'audio' ? <Spinner /> : <Icon name="volume" size={17} />}

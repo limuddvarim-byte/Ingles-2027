@@ -4,61 +4,71 @@ import { platform } from './platform';
 import type { UpdateInfo } from './platform/types';
 import { useStore, type Page } from './state/store';
 import { Icon, type IconName } from './ui/Icon';
-import { Toasts } from './ui/kit';
+import { PageHead, Toasts } from './ui/kit';
 import { useApplyTheme } from './ui/theme';
 import { HomePage } from './pages/home';
 import { EditorPage } from './pages/editor';
 import { StatsPage } from './pages/stats';
 import { StreamingPage } from './pages/streaming';
 import { SettingsPage } from './pages/settings';
-import { PhrasesSection } from './pages/phrases';
-import { PageHead } from './ui/kit';
+import { PhrasesSection, QuickAdd } from './pages/phrases';
 
 interface NavItem {
   page: Page;
   label: string;
-  short: string;
   icon: IconName;
   gradient: string;
   glow: string;
+  line: string;
 }
 
 const NAV: NavItem[] = [
-  { page: 'home', label: 'Início', short: 'Início', icon: 'home', gradient: 'var(--g-home)', glow: 'rgba(139,92,246,.6)' },
-  { page: 'editor', label: 'Editor', short: 'Editor', icon: 'pen', gradient: 'var(--g-editor)', glow: 'rgba(236,72,153,.55)' },
-  { page: 'stats', label: 'Estatísticas', short: 'Stats', icon: 'chart', gradient: 'var(--g-stats)', glow: 'rgba(34,197,94,.55)' },
-  { page: 'streaming', label: 'Streaming', short: 'Streaming', icon: 'tv', gradient: 'var(--g-stream)', glow: 'rgba(249,115,22,.55)' },
-  { page: 'settings', label: 'Ajustes', short: 'Ajustes', icon: 'settings', gradient: 'var(--g-settings)', glow: 'rgba(99,102,241,.55)' },
+  { page: 'home', label: 'Início', icon: 'home', gradient: 'var(--g-home)', glow: 'rgba(255,61,203,.65)', line: 'rgba(255,61,203,.55)' },
+  { page: 'editor', label: 'Editor', icon: 'pen', gradient: 'var(--g-editor)', glow: 'rgba(255,140,60,.6)', line: 'rgba(255,140,60,.55)' },
+  { page: 'stats', label: 'Stats', icon: 'chart', gradient: 'var(--g-stats)', glow: 'rgba(120,255,120,.5)', line: 'rgba(182,255,59,.5)' },
+  { page: 'streaming', label: 'Stream', icon: 'tv', gradient: 'var(--g-stream)', glow: 'rgba(255,90,90,.6)', line: 'rgba(255,176,32,.55)' },
+  { page: 'settings', label: 'Ajustes', icon: 'settings', gradient: 'var(--g-settings)', glow: 'rgba(110,110,255,.65)', line: 'rgba(139,92,255,.55)' },
 ];
 
 const isPopup = typeof location !== 'undefined' && new URLSearchParams(location.search).has('popup');
 
 function navFor(): NavItem[] {
   if (platform.kind === 'extension') {
-    return NAV.map((n) => (n.page === 'home' ? { ...n, label: 'Frases', short: 'Frases', icon: 'quote' as IconName, gradient: 'var(--g-phrases)', glow: 'rgba(20,210,200,.6)' } : n));
+    return NAV.map((n) => (n.page === 'home' ? { ...n, label: 'Frases', icon: 'quote' as IconName, gradient: 'var(--g-phrases)', glow: 'rgba(20,240,216,.6)', line: 'rgba(20,240,216,.5)' } : n));
   }
   return NAV;
 }
 
 function ExtensionPhrases() {
   return (
-    <div className="page" style={{ '--accent': 'var(--g-phrases)', '--accent-glow': 'rgba(20,210,200,.6)' } as CSSProperties}>
-      <PageHead eyebrow="Frases" icon="quote" title={<span>Frases <span className="grad-text">para aprender</span></span>} sub="Toque numa palavra para copiar. Pressione a frase para apagar." />
+    <div className="page">
+      <PageHead eyebrow="Frases" title={<span>Frases <span className="grad-text">para aprender</span></span>} sub="Toque na frase para copiar. Pressione para apagar." />
       <PhrasesSection compactHeader />
     </div>
   );
 }
 
-function SyncDot() {
+function SyncHud() {
   const sync = useStore((s) => s.sync);
   const go = useStore((s) => s.go);
-  const color = sync.state === 'ok' ? '#22c55e' : sync.state === 'error' ? '#f43f5e' : sync.state === 'syncing' ? '#14d2c8' : '#8b88a5';
-  const label = sync.state === 'ok' ? 'Sincronizado' : sync.state === 'error' ? 'Erro na sincronização' : sync.state === 'syncing' ? 'Sincronizando…' : 'Sincronização desligada';
+  const color = sync.state === 'ok' ? '#b6ff3b' : sync.state === 'error' ? '#ff4d6d' : sync.state === 'syncing' ? '#14f0d8' : '#6f6c8e';
+  const label = sync.state === 'ok' ? 'sync ok' : sync.state === 'error' ? 'sync erro' : sync.state === 'syncing' ? 'sync…' : 'offline';
   return (
-    <button className="icon-btn" title={label} onClick={() => go('settings')} style={{ color }}>
-      <Icon name={sync.state === 'off' ? 'cloudOff' : sync.state === 'syncing' ? 'refresh' : 'cloud'} size={18} className={sync.state === 'syncing' ? 'spin' : ''} />
+    <button className="hud" style={{ color }} onClick={() => go('settings')} title="Sincronização Cloudflare">
+      <i />
+      <span style={{ color: 'var(--text-2)' }}>{label}</span>
     </button>
   );
+}
+
+function Clock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 15_000);
+    return () => clearInterval(t);
+  }, []);
+  const d = now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '');
+  return <span className="hud date">{d} · {now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>;
 }
 
 function UpdateBanner() {
@@ -81,7 +91,7 @@ function UpdateBanner() {
         <Icon name="rocket" size={22} />
         <div className="grow">
           <b>Nova versão {info.version} disponível</b>
-          <div className="small" style={{ opacity: 0.85 }}>{info.ready ? 'Baixada — reinicie para aplicar.' : info.progress ? `Baixando… ${Math.round(info.progress)}%` : 'Atualize sem perder nada.'}</div>
+          <div className="small" style={{ opacity: 0.9 }}>{info.ready ? 'Baixada — reinicie para aplicar.' : info.progress ? `Baixando… ${Math.round(info.progress)}%` : 'Atualize sem perder nada.'}</div>
         </div>
         <button className="btn sm" onClick={() => platform.installUpdate(info)}>
           {info.ready ? 'Reiniciar' : 'Atualizar'}
@@ -99,6 +109,8 @@ export function App() {
   const page = useStore((s) => s.page);
   const go = useStore((s) => s.go);
   const toast = useStore((s) => s.toast);
+  const quickAdd = useStore((s) => s.quickAdd);
+  const setQuickAdd = useStore((s) => s.setQuickAdd);
   const nav = navFor();
   const active = nav.find((n) => n.page === page) ?? nav[0];
 
@@ -126,45 +138,33 @@ export function App() {
       <SettingsPage />
     );
 
+  const dockBtn = (n: NavItem) => (
+    <button key={n.page} className={`dock-item ${page === n.page ? 'active' : ''}`} style={{ '--accent': n.gradient, '--accent-glow': n.glow } as CSSProperties} onClick={() => go(n.page)} aria-label={n.label}>
+      <Icon name={n.icon} size={21} stroke={2.1} />
+      {n.label}
+    </button>
+  );
+
   return (
     <>
-      <div className="aurora">
-        <i />
-        <i />
-        <i />
+      <div className="app-bg">
+        <div className="beam" />
+        <div className="orb" />
+        <div className="dots" />
+        <div className="grain" />
       </div>
-      <div className="shell" style={{ '--accent': active.gradient, '--accent-glow': active.glow } as CSSProperties}>
-        <aside className="sidebar">
-          <div className="brand">
-            <img src={logo} alt="" />
-            <div>
-              <b>Inglês</b>
-              <small>{platform.label}</small>
-            </div>
-          </div>
-          {nav.map((n) => (
-            <button key={n.page} className={`nav-item ${page === n.page ? 'active' : ''}`} style={{ '--accent': n.gradient, '--accent-glow': n.glow } as CSSProperties} onClick={() => go(n.page)}>
-              <span className="nav-ico">
-                <Icon name={n.icon} size={18} />
-              </span>
-              {n.label}
-            </button>
-          ))}
-          <div className="spacer" />
-          <div className="row" style={{ padding: '0 6px' }}>
-            <SyncDot />
-            <span className="tiny muted" style={{ fontWeight: 700 }}>
-              Software · App · Extensão
-            </span>
-          </div>
-        </aside>
+      <div className="shell" style={{ '--accent': active.gradient, '--accent-glow': active.glow, '--accent-line': active.line } as CSSProperties}>
         <header className="topbar">
-          <img src={logo} alt="" />
-          <span className="title grad-text" style={{ background: 'var(--brand)', WebkitBackgroundClip: 'text' }}>
-            Inglês
-          </span>
+          <button className="wordmark" onClick={() => go('home')}>
+            <img src={logo} alt="" />
+            <span>
+              <b>INGLÊS</b>
+              <small>{platform.label} · tríade</small>
+            </span>
+          </button>
           <span className="spacer" />
-          <SyncDot />
+          <Clock />
+          <SyncHud />
           {isPopup && (
             <button className="icon-btn" title="Abrir em tela cheia" onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL(`app.html#${page}`) })}>
               <Icon name="external" size={18} />
@@ -175,15 +175,15 @@ export function App() {
           <UpdateBanner />
           {content}
         </main>
-        <nav className="bottombar">
-          {nav.map((n) => (
-            <button key={n.page} className={page === n.page ? 'active' : ''} style={{ '--accent': n.gradient, '--accent-glow': n.glow } as CSSProperties} onClick={() => go(n.page)}>
-              <Icon name={n.icon} size={20} />
-              {n.short}
-            </button>
-          ))}
+        <nav className="dock">
+          {nav.slice(0, 2).map(dockBtn)}
+          <button className="fab" onClick={() => setQuickAdd(true)} title="Nova frase" aria-label="Nova frase">
+            <Icon name="plus" size={26} stroke={2.6} />
+          </button>
+          {nav.slice(2).map(dockBtn)}
         </nav>
       </div>
+      {quickAdd && <QuickAdd onClose={() => setQuickAdd(false)} />}
       <Toasts />
     </>
   );

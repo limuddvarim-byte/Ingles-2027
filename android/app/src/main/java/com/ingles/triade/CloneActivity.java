@@ -22,11 +22,15 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
@@ -53,6 +57,11 @@ public class CloneActivity extends Activity {
 
     private final List<WebView> webViews = new ArrayList<>();
     private final List<TextView> chips = new ArrayList<>();
+    private final List<String> titles = new ArrayList<>();
+    private final List<int[]> tabColors = new ArrayList<>();
+    private TextView headerTitle;
+    private TextView headerBadge;
+    private LinearLayout bottomNav;
     private final List<String> services = new ArrayList<>();
     private final List<String> injects = new ArrayList<>();
     private FrameLayout content;
@@ -100,34 +109,82 @@ public class CloneActivity extends Activity {
         Locale.setDefault(Locale.US);
         LocaleList.setDefault(new LocaleList(Locale.US, Locale.ENGLISH));
 
+        // Desenha atrás das barras do sistema, mas com espaçamento correto (Android 15 edge-to-edge):
+        // o cabeçalho nunca fica embaixo do relógio/notificações.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat ctl = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        ctl.setAppearanceLightStatusBars(false);
+        ctl.setAppearanceLightNavigationBars(false);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.BLACK);
+        root.setBackgroundColor(Color.parseColor("#050508"));
 
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(this, 8), dp(this, 8), dp(this, 8), dp(this, 8));
-        bar.setBackgroundColor(Color.parseColor("#0A0A0F"));
+        // ---------- cabeçalho com a identidade do clone
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(this, 14), dp(this, 10), dp(this, 10), dp(this, 10));
+        header.setBackgroundColor(Color.parseColor("#050508"));
 
-        HorizontalScrollView scroll = new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout tabsRow = new LinearLayout(this);
-        tabsRow.setOrientation(LinearLayout.HORIZONTAL);
-        scroll.addView(tabsRow);
-        bar.addView(scroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        bar.addView(iconButton("⟳", v -> { if (!webViews.isEmpty()) webViews.get(current).reload(); }));
-        bar.addView(iconButton("✕", v -> finish()));
-        root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        headerBadge = new TextView(this);
+        headerBadge.setTextColor(Color.WHITE);
+        headerBadge.setTypeface(Typeface.DEFAULT_BOLD);
+        headerBadge.setTextSize(16);
+        headerBadge.setGravity(Gravity.CENTER);
+        header.addView(headerBadge, new LinearLayout.LayoutParams(dp(this, 36), dp(this, 36)));
+
+        LinearLayout titles = new LinearLayout(this);
+        titles.setOrientation(LinearLayout.VERTICAL);
+        titles.setPadding(dp(this, 12), 0, 0, 0);
+        headerTitle = new TextView(this);
+        headerTitle.setTextColor(Color.WHITE);
+        headerTitle.setTextSize(17);
+        headerTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        TextView sub = new TextView(this);
+        sub.setText("CLONE ISOLADO · EN-US");
+        sub.setTextColor(Color.parseColor("#14F0D8"));
+        sub.setTextSize(10);
+        sub.setLetterSpacing(0.12f);
+        sub.setTypeface(Typeface.MONOSPACE);
+        titles.addView(headerTitle);
+        titles.addView(sub);
+        header.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(roundButton("↻", v -> { if (!webViews.isEmpty()) webViews.get(current).reload(); }));
+        View gap = new View(this);
+        header.addView(gap, new LinearLayout.LayoutParams(dp(this, 8), 1));
+        header.addView(roundButton("✕", v -> finish()));
+        root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setMax(100);
-        progress.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#14D2C8")));
-        root.addView(progress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(this, 3)));
+        progress.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#14F0D8")));
+        progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#050508")));
+        root.addView(progress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(this, 2)));
 
         content = new FrameLayout(this);
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        // ---------- navegação inferior (só quando há mais de um app, ex.: Gemini · ChatGPT · Claude)
+        bottomNav = new LinearLayout(this);
+        bottomNav.setOrientation(LinearLayout.HORIZONTAL);
+        bottomNav.setPadding(dp(this, 6), dp(this, 6), dp(this, 6), dp(this, 6));
+        GradientDrawable navBg = new GradientDrawable();
+        navBg.setColor(Color.parseColor("#12121A"));
+        navBg.setCornerRadius(dp(this, 24));
+        navBg.setStroke(dp(this, 1), Color.parseColor("#26263A"));
+        bottomNav.setBackground(navBg);
+        LinearLayout.LayoutParams navLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        navLp.setMargins(dp(this, 10), dp(this, 8), dp(this, 10), dp(this, 8));
+        root.addView(bottomNav, navLp);
+
         setContentView(root);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            return WindowInsetsCompat.CONSUMED;
+        });
 
         CookieManager.getInstance().setAcceptCookie(true);
 
@@ -135,29 +192,52 @@ public class CloneActivity extends Activity {
             JSONArray tabs = new JSONArray(getIntent().getStringExtra(EXTRA_TABS));
             for (int i = 0; i < tabs.length(); i++) {
                 JSONObject t = tabs.getJSONObject(i);
-                addTab(tabsRow, t.optString("title", "Aba"), t.getString("url"), t.optString("profile", "default"), t.optString("inject", null), t.optString("service", null));
+                int[] colors = new int[]{Color.parseColor("#C2389B"), Color.parseColor("#2E44B8")};
+                JSONArray c = t.optJSONArray("colors");
+                if (c != null && c.length() >= 2) {
+                    try {
+                        colors = new int[]{Color.parseColor(c.getString(0)), Color.parseColor(c.getString(1))};
+                    } catch (Exception ignored) {
+                    }
+                }
+                addTab(bottomNav, str(t, "title", "App"), t.getString("url"), str(t, "profile", "default"), str(t, "inject", null), str(t, "service", null), colors);
             }
         } catch (Exception e) {
             finish();
             return;
         }
+        bottomNav.setVisibility(webViews.size() > 1 ? View.VISIBLE : View.GONE);
         select(Math.min(getIntent().getIntExtra(EXTRA_START, 0), webViews.size() - 1));
     }
 
-    private TextView iconButton(String label, View.OnClickListener l) {
+    /** optString que trata JSON null como ausente. */
+    private static String str(JSONObject o, String key, String fallback) {
+        if (!o.has(key) || o.isNull(key)) return fallback;
+        String v = o.optString(key, fallback);
+        return v == null || v.isEmpty() ? fallback : v;
+    }
+
+    private TextView roundButton(String label, View.OnClickListener l) {
         TextView b = new TextView(this);
         b.setText(label);
         b.setTextColor(Color.WHITE);
-        b.setTextSize(18);
+        b.setTextSize(16);
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(this, 12), dp(this, 6), dp(this, 12), dp(this, 6));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(Color.parseColor("#16161F"));
+        bg.setStroke(dp(this, 1), Color.parseColor("#2A2A3C"));
+        b.setBackground(bg);
+        b.setLayoutParams(new LinearLayout.LayoutParams(dp(this, 38), dp(this, 38)));
         b.setOnClickListener(l);
         return b;
     }
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
-    private void addTab(LinearLayout row, String title, String url, String profile, String inject, String service) {
+    private void addTab(LinearLayout row, String title, String url, String profile, String inject, String service, int[] colors) {
         final int index = webViews.size();
+        titles.add(title);
+        tabColors.add(colors);
         WebView wv = new WebView(this);
         // Cada clone com seu próprio perfil (conta separada), quando o WebView do aparelho suporta.
         try {
@@ -253,9 +333,10 @@ public class CloneActivity extends Activity {
         chip.setTextColor(Color.WHITE);
         chip.setTextSize(14);
         chip.setTypeface(Typeface.DEFAULT_BOLD);
-        chip.setPadding(dp(this, 14), dp(this, 8), dp(this, 14), dp(this, 8));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, 0, dp(this, 6), 0);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(this, 8), dp(this, 12), dp(this, 8), dp(this, 12));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lp.setMargins(dp(this, 3), 0, dp(this, 3), 0);
         chip.setOnClickListener(v -> select(index));
         row.addView(chip, lp);
         chips.add(chip);
@@ -266,12 +347,19 @@ public class CloneActivity extends Activity {
         for (int k = 0; k < webViews.size(); k++) {
             boolean on = k == i;
             webViews.get(k).setVisibility(on ? View.VISIBLE : View.GONE);
-            GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                on ? new int[]{Color.parseColor("#C2389B"), Color.parseColor("#2E44B8")} : new int[]{Color.parseColor("#1A1A24"), Color.parseColor("#1A1A24")});
-            bg.setCornerRadius(dp(this, 14));
+            int[] c = tabColors.get(k);
+            GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, on ? c : new int[]{Color.TRANSPARENT, Color.TRANSPARENT});
+            bg.setCornerRadius(dp(this, 18));
             chips.get(k).setBackground(bg);
-            chips.get(k).setAlpha(on ? 1f : 0.75f);
+            chips.get(k).setTextColor(on ? Color.WHITE : Color.parseColor("#8A88A3"));
         }
+        // cabeçalho com nome e cor do app atual
+        headerTitle.setText(titles.get(i));
+        headerBadge.setText(titles.get(i).isEmpty() ? "•" : titles.get(i).substring(0, 1).toUpperCase(Locale.ROOT));
+        GradientDrawable badge = new GradientDrawable(GradientDrawable.Orientation.TL_BR, tabColors.get(i));
+        badge.setCornerRadius(dp(this, 11));
+        headerBadge.setBackground(badge);
+        progress.setProgressTintList(android.content.res.ColorStateList.valueOf(tabColors.get(i)[0]));
     }
 
     @Override

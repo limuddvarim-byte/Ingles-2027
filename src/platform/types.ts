@@ -45,6 +45,8 @@ export interface CloneTab {
   profile: string;
   /** Serviço de streaming para contar o tempo dentro do clone. */
   service?: string | null;
+  /** Cores do app (cabeçalho e aba ativa). */
+  colors?: [string, string];
   /** JS para injetar após carregar (ex.: preencher prompt no Gemini). */
   inject?: string;
 }

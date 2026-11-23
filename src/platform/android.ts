@@ -83,12 +83,12 @@ export function createAndroidPlatform(): Platform {
     },
     async openLauncherItem(item: LauncherItem) {
       if (item.clone) {
-        await p.openClone(item.clone, item.urls.map((url, i) => ({ title: item.urls.length > 1 ? `${item.name} ${i + 1}` : item.name, url, profile: CLONE_PROFILE[item.clone!], service: item.service ?? null })));
+        await p.openClone(item.clone, item.urls.map((url, i) => ({ title: item.urls.length > 1 ? `${item.name} ${i + 1}` : item.name, url, profile: CLONE_PROFILE[item.clone!], service: item.service ?? null, colors: item.colors })));
         return;
       }
       if (item.urls.length > 1) {
         // grupo de páginas → abas no navegador isolado
-        await p.openClone('chatgpt', item.urls.map((url) => ({ title: new URL(url).hostname.replace('www.', ''), url, profile: `group-${item.id}` })));
+        await p.openClone('chatgpt', item.urls.map((url) => ({ title: new URL(url).hostname.replace('www.', ''), url, profile: `group-${item.id}`, colors: item.colors })));
         return;
       }
       await Native.openApp({ package: item.androidPackage ?? null, url: item.urls[0] });
@@ -102,6 +102,7 @@ export function createAndroidPlatform(): Platform {
         title: t.name,
         url: t.id === 'gemini' ? 'https://gemini.google.com/app' : t.url(prompt),
         profile: CLONE_PROFILE[t.id],
+        colors: t.colors,
         inject: t.id === 'gemini' ? geminiFillScript(prompt) : undefined,
       }));
       await Native.openClone({ kind: 'ai', tabs, start: 0 });

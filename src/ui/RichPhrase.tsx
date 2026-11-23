@@ -1,7 +1,7 @@
-// Renderiza a frase com formatação, palavras clicáveis (copiam ao clicar)
-// e setas sob os termos que abrem a explicação escrita pelo usuário.
-import { Fragment, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { sanitizeHtml } from '../core/richtext';
+// Renderiza a frase com formatação e setas sob os termos (explicações).
+// Tocar em qualquer parte da frase copia a FRASE INTEIRA (sem as explicações das setas).
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { htmlToText, sanitizeHtml } from '../core/richtext';
 import { platform } from '../platform';
 import { useStore } from '../state/store';
 import { Icon } from './Icon';
@@ -31,19 +31,8 @@ export function RichPhrase({ html, copyable = true, className = '' }: { html: st
     const notes: { term: string; note: string }[] = [];
     let key = 0;
 
-    const words = (text: string): ReactNode[] =>
-      text.split(/(\s+)/).map((part) => {
-        if (!part) return null;
-        if (/^\s+$/.test(part)) return part;
-        return (
-          <span key={key++} className="w" data-word={part.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '') || part}>
-            {part}
-          </span>
-        );
-      });
-
     const walk = (n: Node): ReactNode => {
-      if (n.nodeType === Node.TEXT_NODE) return copyable ? <Fragment key={key++}>{words(n.textContent ?? '')}</Fragment> : n.textContent;
+      if (n.nodeType === Node.TEXT_NODE) return n.textContent;
       if (n.nodeType !== Node.ELEMENT_NODE) return null;
       const el = n as HTMLElement;
       if (el.tagName === 'BR') return <br key={key++} />;
@@ -83,20 +72,23 @@ export function RichPhrase({ html, copyable = true, className = '' }: { html: st
     return { tree: Array.from(root.childNodes).map(walk), notes };
   }, [html, copyable]);
 
+  const ref = useRef<HTMLDivElement>(null);
   const onClick = async (e: React.MouseEvent) => {
-    if (!copyable) return;
-    const t = (e.target as HTMLElement).closest('.w') as HTMLElement | null;
-    if (!t) return;
-    const word = t.dataset.word ?? t.textContent ?? '';
-    await platform.copy(word);
-    t.classList.remove('copied');
-    void t.offsetWidth;
-    t.classList.add('copied');
-    toast(`“${word}” copiado`, 'success');
+    if (!copyable || (e.target as HTMLElement).closest('.term-arrow, .note-pop')) return;
+    const text = htmlToText(html).replace(/\n+/g, ' ');
+    if (!text) return;
+    await platform.copy(text);
+    const el = ref.current;
+    if (el) {
+      el.classList.remove('copied');
+      void el.offsetWidth;
+      el.classList.add('copied');
+    }
+    toast('Frase copiada', 'success');
   };
 
   return (
-    <div className={`phrase ${notes.length ? 'has-terms' : ''} ${className}`} onClick={onClick}>
+    <div ref={ref} className={`phrase ${copyable ? 'copyable' : ''} ${notes.length ? 'has-terms' : ''} ${className}`} onClick={onClick} title={copyable ? 'Toque para copiar a frase' : undefined}>
       {tree}
       {notes.map((n, i) =>
         open.has(i) ? (

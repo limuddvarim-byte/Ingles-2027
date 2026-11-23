@@ -1,49 +1,113 @@
 // Página inicial: launcher bonito (software e app) + aba Frases.
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import logo from '../assets/logo.png';
 import { put, putMany, remove, uid } from '../core/db';
 import { SERVICES } from '../core/defaults';
-import { pendingPhrases, watchTotals } from '../core/stats';
+import { pendingPhrases, todayStats, watchTotals } from '../core/stats';
 import { dayKey, formatDuration, greeting } from '../core/time';
 import type { CloneKind, IconSpec, LauncherItem, StreamingService } from '../core/types';
 import { platform } from '../platform';
 import { useStore } from '../state/store';
 import { BRAND_IDS, TileIcon } from '../ui/BrandIcon';
 import { Icon, ICON_NAMES } from '../ui/Icon';
-import { Modal, Segmented, Switch } from '../ui/kit';
+import { Modal, Ring, Segmented, Switch } from '../ui/kit';
 import { PhrasesSection } from './phrases';
 
 export function HomePage() {
   const phrases = useStore((s) => s.phrases);
   const watch = useStore((s) => s.watch);
   const goal = useStore((s) => s.shared.dailyGoalMinutes);
+  const go = useStore((s) => s.go);
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 15_000);
+    return () => clearInterval(t);
+  }, []);
   const today = dayKey();
   const watched = useMemo(() => watchTotals(watch, (d) => d === today).total, [watch, today]);
   const pending = useMemo(() => pendingPhrases(phrases).length, [phrases]);
+  const t = useMemo(() => todayStats(phrases), [phrases]);
+  const goalPct = goal ? Math.min(1, watched / 60 / goal) : 0;
+  const dateLabel = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 
   return (
-    <div className="page" style={{ '--accent': 'var(--g-home)', '--accent-glow': 'rgba(139,92,246,.6)' } as CSSProperties}>
-      <div className="hero">
-        <img className="hero-logo" src={logo} alt="" />
-        <h1>{greeting()}! 👋</h1>
-        <p>Bora mergulhar no inglês hoje?</p>
-        <div className="hero-stats">
-          <div className="hero-stat">
-            <b>{pending}</b>
-            <span>frases na fila</span>
+    <div className="page" style={{ '--accent': 'var(--g-home)', '--accent-glow': 'rgba(255,61,203,.6)' } as CSSProperties}>
+      <div className="bento">
+        <div className="tile-box b-hero">
+          <img className="logo-mark" src={logo} alt="" />
+          <div>
+            <span className="idx">
+              [ <b>00</b> ] {dateLabel}
+            </span>
+            <div className="clock">{now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
-          <div className="hero-stat">
-            <b>{formatDuration(watched)}</b>
-            <span>de inglês hoje</span>
-          </div>
-          <div className="hero-stat">
-            <b>{goal ? `${Math.min(100, Math.round((watched / 60 / goal) * 100))}%` : '—'}</b>
-            <span>da meta diária</span>
+          <div>
+            <h1>
+              {greeting()}, <span className="grad-text" style={{ background: 'var(--holo)', WebkitBackgroundClip: 'text' }}>bora pro inglês?</span>
+            </h1>
+            <p>
+              {pending} {pending === 1 ? 'frase esperando' : 'frases esperando'} por você · meta de {goal} min de inglês hoje
+            </p>
           </div>
         </div>
+
+        <button className="tile-box b-ring" style={{ textAlign: 'left', color: 'inherit', font: 'inherit', cursor: 'pointer' }} onClick={() => go('streaming')}>
+          <Ring value={goalPct} size={132} stroke={13} colors={['#ffb020', '#ff3dcb']}>
+            <b style={{ fontSize: 22 }}>{Math.round(goalPct * 100)}%</b>
+            <div className="tiny muted mono">DA META</div>
+          </Ring>
+          <div>
+            <span className="idx">inglês assistido hoje</span>
+            <div className="big">{formatDuration(watched)}</div>
+            <div className="small muted" style={{ marginTop: 8 }}>
+              {goal && watched / 60 >= goal ? 'Meta batida! 🏆' : `Faltam ${formatDuration(Math.max(0, goal * 60 - watched))}`}
+            </div>
+            <span className="chip" style={{ marginTop: 12 }}>
+              <Icon name="tv" size={12} /> ver streaming
+            </span>
+          </div>
+        </button>
+
+        <div className="tile-box b-stat">
+          <span className="lbl">Frases adicionadas (para aprender) hoje</span>
+          <div>
+            <div className="num" style={{ color: 'var(--cyan)' }}>{String(t.added).padStart(2, '0')}</div>
+            <div className="meter">
+              <i style={{ width: `${Math.min(100, t.added * 10)}%`, background: 'var(--g-phrases)', color: 'var(--cyan)' }} />
+            </div>
+          </div>
+          <Icon name="plus" size={110} className="wm" />
+        </div>
+        <div className="tile-box b-stat">
+          <span className="lbl">Frases aprendidas hoje</span>
+          <div>
+            <div className="num" style={{ color: 'var(--lime)' }}>{String(t.learned).padStart(2, '0')}</div>
+            <div className="meter">
+              <i style={{ width: `${Math.min(100, t.learned * 10)}%`, background: 'var(--g-stats)', color: 'var(--lime)' }} />
+            </div>
+          </div>
+          <Icon name="graduation" size={110} className="wm" />
+        </div>
+        <div className="tile-box b-stat" title={t.rate.description}>
+          <span className="lbl">
+            Média de aprendizado<span className="hide-narrow"> · {t.rate.description}</span>
+          </span>
+          <div>
+            <div className="num" style={{ color: t.rate.color }}>{t.rate.label}</div>
+            <div className="meter">
+              <i style={{ width: `${t.rate.pct === null ? 0 : Math.min(100, t.rate.pct)}%`, background: t.rate.color, color: t.rate.color }} />
+            </div>
+          </div>
+          <Icon name="target" size={110} className="wm" />
+        </div>
+
+        {platform.features.launcher && (
+          <div className="tile-box b-launch">
+            <Launcher />
+          </div>
+        )}
       </div>
-      {platform.features.launcher && <Launcher />}
-      <PhrasesSection />
+      <PhrasesSection hideStats index={platform.features.launcher ? '02' : '01'} />
     </div>
   );
 }
@@ -78,14 +142,12 @@ function Launcher() {
 
   return (
     <section>
-      <div className="row between wrap" style={{ margin: '28px 0 16px' }}>
+      <div className="section-head" style={{ margin: '0 0 20px' }}>
         <div>
-          <div className="eyebrow">
-            <Icon name="rocket" size={14} /> Launcher
-          </div>
-          <h2 style={{ margin: 0, fontSize: 22, letterSpacing: '-.02em' }}>
-            Seus estudos {platform.kind === 'desktop' && <span className="muted small" style={{ fontWeight: 600 }}>· abre no Chrome Estudos (perfil isolado)</span>}
-          </h2>
+          <span className="idx">
+            [ <b>01</b> ] launcher {platform.kind === 'desktop' ? '· chrome estudos (perfil isolado)' : platform.kind === 'android' ? '· apps e clones isolados' : ''}
+          </span>
+          <h2>Seus apps</h2>
         </div>
         <div className="row">
           <button className={`btn sm ${editing ? 'primary' : ''}`} onClick={() => setEditing(!editing)}>
